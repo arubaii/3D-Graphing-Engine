@@ -11,8 +11,8 @@ int main()
 	appProps.Name = "App Name";
 	appProps.WindowProps.Width  = 1366;
 	appProps.WindowProps.Height = 768;  // 16:9
-	appProps.WindowProps.Title = "OpenGL";
-	appProps.WindowProps.MonitorSelected = 1; // 0 is the main monitor
+	appProps.WindowProps.Title = "Engine Core";
+	appProps.WindowProps.MonitorSelected = 0; // 0 is the main monitor
 
 	Application app(appProps);
 	app.Run();
@@ -23,6 +23,7 @@ int main()
 		git add .
 		git commit -m "message"
 		git push
+			(if push error, do the following and redo git push): git pull --rebase origin main
 
 */
 
@@ -72,8 +73,8 @@ int main()
 	|
 	|-- Asset Registry (metadata)
 	|	|-- UUID
-	|	|-- File path
 	|	|-- Asset type
+	|	|-- File path
 	|	|-- Load state
 	|
 	|-- Asset Cache (live objects)
@@ -87,9 +88,25 @@ int main()
 	|-- Serializer / Deserializer
 	|	|-- YAML / JSON
 	|
-	|-- File Watcher
+	|-- File Watcher: enables for hot reloading (don't have to reload program when a file is changed)
 
-	Asset paths are never identifiedby file paths at runtime, since files move, assets are renamed, etc.
+	Asset paths are never identified by file paths at runtime, since files move, assets are renamed, etc.
 		using AssetHandle = UUID;
+
+	YAML EXAMPLE:
+
+		Asset:
+			Handle: 234823
+			Type: Texture
+			File: textures/wood.png
+
+	API:
+
+		AssetHandle LoadAsset(const std::filesystem::path&);
+		template<typename T>
+		Ref<T> GetAsset(AssetHandle);
+
+		bool IsLoaded(AssetHandle);
+		void ReloadAsset(AssetHandle);
 
 */

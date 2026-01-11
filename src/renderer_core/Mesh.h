@@ -56,7 +56,7 @@ public:
 		glGetVertexAttribiv(0, GL_VERTEX_ATTRIB_ARRAY_ENABLED, &enabled0);
 		glGetVertexAttribiv(1, GL_VERTEX_ATTRIB_ARRAY_ENABLED, &enabled1);
 		assert(enabled0 == GL_TRUE && enabled1 == GL_TRUE);
-		// IMPORTANT: bind EBO WHILE VAO IS BOUND
+		// Bind EBO while VAO is bound
 		IndexBuffer ib(
 			static_cast<uint32_t>(mesh.Indices.size()),
 			mesh.Indices.data()

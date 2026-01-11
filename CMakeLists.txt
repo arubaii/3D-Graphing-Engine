@@ -46,6 +46,7 @@ target_include_directories(imgui PUBLIC
         ${IMGUI_DIR}
         ${IMGUI_DIR}/backends
 )
+
 target_link_libraries(imgui PUBLIC glfw "-framework OpenGL")
 
 # ======================================================
@@ -57,7 +58,9 @@ file(GLOB_RECURSE SRC_FILES
 
 )
 
-add_executable(Engine_Core ${SRC_FILES}
+add_executable(Engine_Core
+        ${SRC_FILES}
+        vendor/stb/stb_image.cpp
 
 )
 
@@ -71,6 +74,9 @@ target_compile_definitions(Engine_Core PRIVATE
 # ======================================================
 # =============== Include Directories ==================
 # ======================================================
+add_subdirectory(vendor/yaml-cpp)
+
+target_link_libraries(Engine_Core PRIVATE yaml-cpp)
 
 target_include_directories(Engine_Core PRIVATE
         ${CMAKE_SOURCE_DIR}/src
@@ -93,6 +99,7 @@ if(APPLE)
                 /opt/homebrew/lib/libGLEW.dylib
                 imgui
                 EnTT::EnTT
+                yaml-cpp
         )
     else()
         target_link_libraries(Engine_Core PRIVATE
@@ -101,6 +108,7 @@ if(APPLE)
                 "-framework OpenGL"
                 imgui
                 EnTT::EnTT
+                yaml-cpp
         )
     endif()
 else()
@@ -110,6 +118,7 @@ else()
             OpenGL::GL
             imgui
             EnTT::EnTT
+            yaml-cpp
     )
 endif()
 

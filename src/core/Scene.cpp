@@ -171,7 +171,7 @@ void Scene::Update(float dt, Input& input)
 	if (hasHit)
 	{
 		Entity entity{ hit.entity, this };
-		LOG("Hit");
+
 		if (input.IsMousePressedOnce(Mouse::Middle))
 		{
 			if (m_ActiveController == ORBIT_CONTROLLER_INDEX)
