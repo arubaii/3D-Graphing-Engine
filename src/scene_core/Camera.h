@@ -23,7 +23,9 @@ public:
 	virtual const glm::mat4& GetViewMatrix() const = 0;
 	virtual const glm::mat4& GetProjectionMatrix() const = 0;
 	virtual const glm::vec3& GetPosition() const = 0;
-	virtual glm::vec3 GetForward() const = 0;
+	virtual glm::vec3 GetForwardVector() const = 0;
+	virtual glm::vec3 GetRightVector() const = 0;
+	virtual glm::vec3 GetUpVector() const = 0;
 
 	Ray GetRayFromScreen(const glm::vec2& mousePos,
 						 const glm::vec2& viewportSize) const

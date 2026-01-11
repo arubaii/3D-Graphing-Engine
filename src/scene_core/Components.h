@@ -46,7 +46,7 @@ struct TagComponent
 
 struct MeshComponent
 {
-	std::shared_ptr<Mesh> MeshData;
+	Ref<Mesh> MeshData;
 };
 
 

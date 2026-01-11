@@ -61,4 +61,35 @@ int main()
 	6. Minimal Layer System
 	7. Minimal Event System
 	8. Tidy up -> Refine Abstractions -> Refactor
+
+	Asset Management:
+	|-- Asset Classes (Base class: (class Asset, public: AssetHandle Handle; virtual ~Asset() = default;) )
+	|	-> |-- Texture
+	|	-> |-- Mesh
+	|	-> |-- Model
+	|	-> |-- Shader
+	|	-> |-- Audio
+	|
+	|-- Asset Registry (metadata)
+	|	|-- UUID
+	|	|-- File path
+	|	|-- Asset type
+	|	|-- Load state
+	|
+	|-- Asset Cache (live objects)
+	|   |-- AssetLoader (Base class)
+	|	-> |-- TextureLoader
+	|	-> |-- MeshLoader
+	|	-> |-- ShaderLoader (already have)
+	|	-> |-- Audio Loader
+	|	-> |-- ModelLoader
+	|
+	|-- Serializer / Deserializer
+	|	|-- YAML / JSON
+	|
+	|-- File Watcher
+
+	Asset paths are never identifiedby file paths at runtime, since files move, assets are renamed, etc.
+		using AssetHandle = UUID;
+
 */

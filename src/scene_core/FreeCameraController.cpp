@@ -14,22 +14,28 @@ void FreeCameraController::Update(float dt, Input& input)
 	const float velocity = m_MoveSpeed * dt;
 
 	// Direction vectors
-	glm::vec3 forward = m_Camera->GetForward();
-	glm::vec3 right = glm::normalize(glm::cross(forward, glm::vec3(0.0f, 1.0f, 0.0f)));
-	glm::vec3 up = glm::normalize(glm::cross(right, forward));
+	glm::vec3 forward = m_Camera->GetForwardVector();
+	glm::vec3 right   = m_Camera->GetRightVector();
+	glm::vec3 up	  = m_Camera->GetUpVector();
 
 	glm::vec3 position = m_Camera->GetPosition();
 
 	// =========== Keyboard Movement ===========
 
-	if (input.IsKeyPressed(Key::W)) 		 position += forward * velocity;
-	if (input.IsKeyPressed(Key::S)) 		 position -= forward * velocity;
-	if (input.IsKeyPressed(Key::A)) 		 position -= right   * velocity;
-	if (input.IsKeyPressed(Key::D)) 		 position += right   * velocity;
-	if (input.IsKeyPressed(Key::Space))      position += up * velocity;
-	if (input.IsKeyPressed(Key::LeftCtrl))   position -= up * velocity;
+	glm::vec3 move{0.0f};
+
+	if (input.IsKeyPressed(Key::W)) 	   move += forward;
+	if (input.IsKeyPressed(Key::S)) 	   move -= forward;
+	if (input.IsKeyPressed(Key::A)) 	   move -= right;
+	if (input.IsKeyPressed(Key::D))		   move += right;
+	if (input.IsKeyPressed(Key::Space))    move += up;
+	if (input.IsKeyPressed(Key::LeftCtrl)) move -= up;
+
+	if (move != glm::vec3(0.0f))
+		position += glm::normalize(move) * velocity;
 
 	m_Camera->SetPosition(position);
+
 	// ============ Mouse Movement ============
 	glm::vec2 mouse = input.GetMouseDelta();
 

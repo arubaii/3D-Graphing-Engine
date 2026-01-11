@@ -27,6 +27,11 @@ public:
 		return component;
 	}
 
+	/**
+	 * @brief Retrieves a reference to the entity's component of type T.
+	 *
+	 * @note Asserts if the entity does not have the requested component.
+	 */
 	template<typename T>
 	T& GetComponent()
 	{

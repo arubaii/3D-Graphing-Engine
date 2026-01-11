@@ -18,11 +18,11 @@ Scene::Scene(Window& window, Input& input)
 {
 
 	m_CameraControllers.push_back(
-	std::make_unique<FreeCameraController>()
+	CreateScope<FreeCameraController>()
 	);
 
 	m_CameraControllers.push_back(
-		std::make_unique<OrbitCameraController>(10.0f)
+		CreateScope<OrbitCameraController>(10.0f)
 	);
 	m_ActiveController = FREE_CONTROLLER_INDEX;
 
@@ -47,7 +47,7 @@ Scene::Scene(Window& window, Input& input)
 	Entity cube = CreateEntity(UUID(), "Cube");
 
 	auto& mc = cube.AddComponent<MeshComponent>();
-	mc.MeshData = std::make_shared<Mesh>();
+	mc.MeshData = CreateRef<Mesh>();
 	mc.MeshData->Vertices = PRIMITIVES::CubeVertices;
 	mc.MeshData->Indices  = PRIMITIVES::CubeIndices;
 
@@ -168,9 +168,10 @@ void Scene::Update(float dt, Input& input)
 	// ================================== ORBIT SELECT LOGIC ================================= //
 	// ======================================================================================= //
 
-	if (Raycast(ray, hit) && hit.entity != entt::null)
+	if (hasHit)
 	{
 		Entity entity{ hit.entity, this };
+		LOG("Hit");
 		if (input.IsMousePressedOnce(Mouse::Middle))
 		{
 			if (m_ActiveController == ORBIT_CONTROLLER_INDEX)
@@ -204,6 +205,11 @@ void Scene::Update(float dt, Input& input)
 	}
 
 	// Drag Entity
+	// TODO: Refine Later
+	//		 - Add cursor to move entity, so that the entire camera doesn't move
+	//		 - Add a bounding area around the camera for more consistent dragging,
+	//		   rather than a max distance
+	constexpr float MAX_DRAG_DISTANCE = 25.0f;
 	if (m_IsDragging &&
 		input.IsMousePressed(Mouse::Left) &&
 		m_DraggedEntity != entt::null)
@@ -212,8 +218,18 @@ void Scene::Update(float dt, Input& input)
 		if (IntersectPlane(ray, 0.0f, planeHit))
 		{
 			Entity dragged{ m_DraggedEntity, this };
-			dragged.GetComponent<TransformComponent>()
-				   .Translation = planeHit + m_DragOffset;
+
+			glm::vec3 desiredPos = planeHit + m_DragOffset;
+
+			const glm::vec3 camPos = cc.Camera.GetPosition();
+			glm::vec3 camToPos = desiredPos - camPos;
+
+			float dist = glm::length(camToPos);
+			if (dist > MAX_DRAG_DISTANCE)
+				camToPos = glm::normalize(camToPos) * MAX_DRAG_DISTANCE;
+
+			dragged.GetComponent<TransformComponent>().Translation =
+				camPos + camToPos;
 		}
 	}
 
@@ -256,7 +272,7 @@ void Scene::TestCamera(float dt, Input& input)
 	const auto& cc = camEntity.GetComponent<CameraComponent>();
 
 	const glm::vec3 pos = cc.Camera.GetPosition();
-	const glm::vec3 fwd = cc.Camera.GetForward();
+	const glm::vec3 fwd = cc.Camera.GetForwardVector();
 	LOG(
 		"Camera Pos: (",
 		pos.x, ", ",

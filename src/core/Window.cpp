@@ -101,7 +101,7 @@ void Window::AttachInput(Input& input)
     input.Init(m_Window);
 }
 
-std::unique_ptr<Window> Window::Create(unsigned int width,
+Scope<Window> Window::Create(unsigned int width,
                                        unsigned int height,
                                        const std::string& title,
                                        unsigned int MonitorSelected)
@@ -112,7 +112,7 @@ std::unique_ptr<Window> Window::Create(unsigned int width,
     spec.Title = title;
     spec.MonitorSelected = MonitorSelected;
 
-    return std::make_unique<Window>(spec);
+    return CreateScope<Window>(spec);
 }
 
 bool Window::ShouldClose() const { return glfwWindowShouldClose(m_Window); }

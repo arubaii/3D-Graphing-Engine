@@ -1,8 +1,8 @@
 #pragma once
 #include "GLcommon.h"
 #include <glm/vec2.hpp>
-#include <memory>
 #include <iostream>
+#include "utils/SmartPtrs.h"
 
 
 struct WindowProperties
@@ -49,7 +49,7 @@ public:
 	// void SetVSync(bool enabled = 0);
 
 
-    static std::unique_ptr<Window> Create
+    static Scope<Window> Create
 	(
         unsigned int width,
         unsigned int height,

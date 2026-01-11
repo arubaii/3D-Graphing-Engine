@@ -4,6 +4,8 @@
 #include "GLcommon.h"
 #include <glm/mat4x4.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include "utils/SmartPtrs.h"
+
 
 struct Shader
 {
@@ -29,11 +31,10 @@ public:
 
 	unsigned int GetID() { return ID; }
 
-	static std::shared_ptr<Shader> Create(const std::string& vertPath, const std::string& fragPath)
+	static Ref<Shader> Create(const std::string& vertPath, const std::string& fragPath)
 	{
-		return std::make_shared<Shader>(vertPath, fragPath);
+		return CreateRef<Shader>(vertPath, fragPath);
 	}
-
 
 	void SetBool  (const std::string& name, bool state) const
 	{

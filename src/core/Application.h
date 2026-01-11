@@ -34,11 +34,11 @@ private:
 private:
 	ApplicationProperties m_AppProps;
 
-	std::unique_ptr<Window>     m_Window;
-	std::unique_ptr<Renderer>   m_Renderer;
-	std::unique_ptr<Scene>      m_Scene;
-	// std::unqiue_ptr<ImGuiLayer> m_ImGuiLayer;
-	std::unique_ptr<Shader> m_Shader;
+	Scope<Window>     m_Window;
+	Scope<Renderer>   m_Renderer;
+	Scope<Scene>      m_Scene;
+	// Scope<ImGuiLayer> m_ImGuiLayer;
+	Scope<Shader> m_Shader;
 	Input	   m_Input;
 
 

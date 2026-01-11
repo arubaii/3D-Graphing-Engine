@@ -1,3 +1,4 @@
+#include "utils/SmartPtrs.h"
 #include "Application.h"
 #include "utils/Log.h"
 #include "scene_core/Entity.h"
@@ -16,9 +17,9 @@ Application::Application(const ApplicationProperties& props)
 	m_Window->AttachInput(m_Input);
 	m_Window->SetInputMode(GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
-	m_Shader   = std::make_unique<Shader>("base.vert", "base.frag");
-	m_Scene    = std::make_unique<Scene>(*m_Window, m_Input);
-	m_Renderer = std::make_unique<Renderer>();
+	m_Shader   = CreateScope<Shader>("base.vert", "base.frag");
+	m_Scene    = CreateScope<Scene>(*m_Window, m_Input);
+	m_Renderer = CreateScope<Renderer>();
 }
 
 Application::~Application() {}

@@ -8,6 +8,8 @@ private:
 	float m_MoveSpeed = 15.0f;
 	float m_MouseSensitivity = 0.1f;
 
+	glm::vec3 GetFrontVector();
+	glm::vec3 GetUpVector();
 
 public:
 	FreeCameraController() = default;

@@ -1,4 +1,5 @@
 #pragma once
+#include "utils/SmartPtrs.h"
 #include "renderer_core/VertexArray.h"
 #include "renderer_core/IndexBuffer.h"
 #include "renderer_core/Shader.h"
@@ -7,7 +8,7 @@
 class Renderer
 {
 public:
-	void SetShader(const std::shared_ptr<Shader>& shader)
+	void SetShader(const Ref<Shader>& shader)
     {
          m_Shader = shader;
     }
@@ -20,5 +21,5 @@ public:
 	void Clear() const;
 	void Draw(const VertexArray& va, const IndexBuffer& ib) const;
 private:
-	std::shared_ptr<Shader> m_Shader;
+	Ref<Shader> m_Shader;
 };

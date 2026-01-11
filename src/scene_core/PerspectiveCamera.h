@@ -18,7 +18,9 @@ public:
 	const glm::mat4& GetViewMatrix()	   const override { return m_ViewMatrix; }
 	const glm::mat4& GetProjectionMatrix() const override { return m_ProjectionMatrix; }
 	const glm::vec3& GetPosition()		   const override { return m_Position; }
-	glm::vec3 GetForward() const override;
+	glm::vec3 GetForwardVector() const override;
+	glm::vec3 GetRightVector() const override;
+	glm::vec3 GetUpVector() const override;
 
 	void RecalculateView();
 	void RecalculateProjection();

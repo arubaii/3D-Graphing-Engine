@@ -40,11 +40,21 @@ void PerspectiveCamera::RecalculateProjection()
 
 };
 
-glm::vec3 PerspectiveCamera::GetForward() const
+glm::vec3 PerspectiveCamera::GetForwardVector() const
 {
 	return glm::normalize(glm::vec3(
-		cos(glm::radians(m_Yaw)) * cos(glm::radians(m_Pitch)),
-		sin(glm::radians(m_Pitch)),
-		sin(glm::radians(m_Yaw)) * cos(glm::radians(m_Pitch))
+		cos(glm::radians(m_Yaw)) * cos(glm::radians(m_Pitch)), // x
+		sin(glm::radians(m_Pitch)),							   // y
+		sin(glm::radians(m_Yaw)) * cos(glm::radians(m_Pitch))  // z
 	));
+}
+
+glm::vec3 PerspectiveCamera::GetRightVector() const
+{
+	return glm::normalize(glm::cross(GetForwardVector(), glm::vec3(0.0f, 1.0f, 0.0f)));
+}
+
+glm::vec3 PerspectiveCamera::GetUpVector() const
+{
+	return glm::normalize(glm::cross(GetRightVector(), GetForwardVector()));
 }
