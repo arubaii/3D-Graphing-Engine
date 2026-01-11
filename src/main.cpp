@@ -17,6 +17,15 @@ int main()
 	Application app(appProps);
 	app.Run();
 }
+/*
+	GIT WORKFLOW ====================================
+
+		git add .
+		git commit -m "message"
+		git push
+
+*/
+
 
 /* Ownership:
 		Application

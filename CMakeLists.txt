@@ -28,7 +28,7 @@ FetchContent_MakeAvailable(entt)
 # =============== IMGUI SETUP ==========================
 # ======================================================
 
-set(IMGUI_DIR ${CMAKE_SOURCE_DIR}/include/imgui)
+set(IMGUI_DIR ${CMAKE_SOURCE_DIR}/vendor/imgui)
 
 set(IMGUI_SOURCES
         ${IMGUI_DIR}/imgui.cpp
@@ -75,8 +75,9 @@ target_compile_definitions(Engine_Core PRIVATE
 target_include_directories(Engine_Core PRIVATE
         ${CMAKE_SOURCE_DIR}/src
         ${CMAKE_SOURCE_DIR}/include
-        ${CMAKE_SOURCE_DIR}/include/imgui
-        ${CMAKE_SOURCE_DIR}/include/imgui/backends
+        ${CMAKE_SOURCE_DIR}/vendor
+        ${CMAKE_SOURCE_DIR}/vendor/imgui
+        ${CMAKE_SOURCE_DIR}/vendor/imgui/backends
         ${GLEW_INCLUDE_DIRS}
 )
 
