@@ -65,3 +65,9 @@ void AssetManager::UnloadAsset(AssetHandle handle)
 {
 	s_LoadedAssets.erase(handle);
 }
+
+bool AssetManager::Exists(AssetHandle handle)
+{
+	return s_Metadata.find(handle) != s_Metadata.end();
+}
+

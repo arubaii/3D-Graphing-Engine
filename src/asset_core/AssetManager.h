@@ -22,6 +22,7 @@ public:
 	static void UnloadAsset(AssetHandle handle);
 
 	static bool IsLoaded(AssetHandle handle);
+	static bool Exists(AssetHandle handle);
 
 };
 
