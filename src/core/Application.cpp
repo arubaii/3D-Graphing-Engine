@@ -17,32 +17,41 @@ Application::Application(const ApplicationProperties& props)
 	m_Window->AttachInput(m_Input);
 	m_Window->SetInputMode(GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
-	m_Shader   = CreateScope<Shader>("base.vert", "base.frag");
-	m_Scene    = CreateScope<Scene>(*m_Window, m_Input);
-	m_Renderer = CreateScope<Renderer>();
+	m_Shader     = CreateScope<Shader>("base.vert", "base.frag");
+	m_Scene      = CreateScope<Scene>(*m_Window, m_Input);
+	m_Renderer   = CreateScope<Renderer>();
+	m_ImGuiLayer = CreateScope<ImGuiLayer>();
+
+	m_ImGuiLayer->OnAttach(m_Window->GetGLFWwindow());
 }
 
 Application::~Application() {}
 
 void Application::Run()
 {
-
-
 	while (!m_Window->ShouldClose())
 	{
 		UpdateDeltaTime();
 		m_Window->PollEvents();
 
+
 		m_Input.Update(m_DeltaTime);
 		m_Scene->Update(m_DeltaTime, m_Input);
-
-		glClearColor(0.1, 0.1, 0.1, 1.0f);
+		glClearColor(m_DebugData.greyScale, m_DebugData.greyScale, m_DebugData.greyScale, 1.0f);
 		m_Renderer->Clear();
-
-		// m_Renderer->SetShader(*m_Shader);
 		m_Scene->Render(*m_Renderer);
-		// Test draw
-		// TestTriangle();
+
+
+		m_ImGuiLayer->BeginFrame();
+
+		m_DebugData.fps        = static_cast<int>(1.0f / m_DeltaTime);
+		m_DebugData.frameTime  = m_DeltaTime * 1000.0f;
+		m_DebugData.cameraPos  = m_Scene->GetMainCameraPos();
+		m_DebugData.pitch      = m_Scene->GetMainCameraPitch();
+		m_DebugData.yaw        = m_Scene->GetMainCameraYaw();
+
+		DebugPanel::Render(m_DebugData);
+		m_ImGuiLayer->EndFrame();
 
 		m_Input.EndFrame();
 		m_Window->SwapBuffers();

@@ -27,12 +27,12 @@ public:
 	virtual glm::vec3 GetRightVector() const = 0;
 	virtual glm::vec3 GetUpVector() const = 0;
 
-	Ray GetRayFromScreen(const glm::vec2& mousePos,
+	Ray GetRayFromScreen(const glm::vec2& cursorPos,
 						 const glm::vec2& viewportSize) const
 	{
 		// 1. Screen -> NDC
-		float x = (2.0f * mousePos.x) / viewportSize.x - 1.0f;
-		float y = 1.0f - (2.0f * mousePos.y) / viewportSize.y;
+		float x = (2.0f * cursorPos.x) / viewportSize.x - 1.0f;
+		float y = 1.0f - (2.0f * cursorPos.y) / viewportSize.y;
 		glm::vec2 ndc{x, y};
 
 		// 2. Clip space

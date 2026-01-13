@@ -10,8 +10,7 @@ void OrbitCameraController::Update(float dt, Input& input)
 
 	assert(m_Camera && "Camera not bound to FreeCameraController");
 
-	if (input.IsCursorEnabled())
-		return;
+
 
 	glm::vec2 mouse    = input.GetMouseDelta();
 	double mouseScroll = input.GetMouseScrollY();
@@ -20,11 +19,14 @@ void OrbitCameraController::Update(float dt, Input& input)
 	const float keySensitivity	   = 0.02f;
 	const float keyZoomSensitivity = 0.01f;
 	const float minRadius          = 5.0f;
-	const float maxRadius		   = 30.0f;
+	const float maxRadius		   = 30000.0f;
 	// TODO: Set min and max radius proportional to the size the pivot object
 
-	m_Yaw    += mouse.x * mouseSensitivity;
-	m_Pitch  += mouse.y * mouseSensitivity;
+	if (input.IsMousePressed(Mouse::Left))
+	{
+		m_Yaw    += mouse.x * mouseSensitivity;
+		m_Pitch  -= mouse.y * mouseSensitivity;
+	}
 	m_Radius -= mouseScroll * mouseSensitivity; // Mouse Zoom
 
 	if (input.IsKeyPressed(Key::A))	m_Yaw   += keySensitivity;

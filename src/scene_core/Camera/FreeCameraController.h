@@ -5,7 +5,7 @@ class FreeCameraController : public CameraController
 {
 private:
 	// PerspectiveCamera& m_Camera;
-	float m_MoveSpeed = 15.0f;
+	float m_MoveSpeed = 25.0f;
 	float m_MouseSensitivity = 0.1f;
 
 	glm::vec3 GetFrontVector();

@@ -9,8 +9,6 @@ int main()
 {
 	ApplicationProperties appProps;
 	appProps.Name = "App Name";
-	appProps.WindowProps.Width  = 1366;
-	appProps.WindowProps.Height = 768;  // 16:9
 	appProps.WindowProps.Title = "Engine Core";
 	appProps.WindowProps.MonitorSelected = 0; // 0 is the main monitor
 

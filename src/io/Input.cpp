@@ -18,10 +18,13 @@ void Input::Update(double deltaTime)
 {
 
 	// Escape enables cursor
-	if (IsKeyPressedOnce(GLFW_KEY_ESCAPE) && !s_Mouse.cursorEnabled)
+	if (IsKeyPressedOnce(GLFW_KEY_ESCAPE))
 	{
-		glfwSetInputMode(m_Window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-		s_Mouse.cursorEnabled = true;
+		if (!s_Mouse.cursorEnabled)
+			glfwSetInputMode(m_Window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+		else
+			glfwSetInputMode(m_Window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+		s_Mouse.cursorEnabled = !s_Mouse.cursorEnabled;
 		s_Mouse.first = true;
 	}
 }
@@ -30,7 +33,6 @@ bool Input::IsKeyPressed(int key) const
 {
 	return glfwGetKey(m_Window, key) == GLFW_PRESS;
 }
-
 
 bool Input::IsKeyPressedOnce(int key)
 {
@@ -104,12 +106,12 @@ void Input::MouseButtonCallback(GLFWwindow* window, int button, int action, int 
 
 	auto& mouse = s_Instance->s_Mouse;
 
-	if (s_Instance->s_Mouse.cursorEnabled && action == GLFW_PRESS)
-	{
-		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-		s_Instance->s_Mouse.cursorEnabled = false;
-		s_Instance->s_Mouse.first = true;
-	}
+	// if (s_Instance->s_Mouse.cursorEnabled && action == GLFW_PRESS)
+	// {
+	// 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+	// 	s_Instance->s_Mouse.cursorEnabled = false;
+	// 	s_Instance->s_Mouse.first = true;
+	// }
 }
 
 // MouseScroll Input::s_Scroll{};

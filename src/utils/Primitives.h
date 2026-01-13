@@ -101,43 +101,77 @@ namespace PRIMITIVES
         3, 2, 6, 6, 7, 3, // top
         0, 1, 5, 5, 4, 0  // bottom
     };
-	
+
+
 
     inline const unsigned int PlaneIndices[] = { 0, 1, 2, 2, 3, 0 };
 
-    // Infinite Grid
-    inline std::vector<float> GenerateGridVertices(int gridSize = 1, float spacing = 1.0f)
+	// --- Thick Vertical Line ---
+	inline const float LineHalfThickness = 0.02f;
+	inline const float LineHeight        = 10000.0f;
+
+
+    inline std::vector<Vertex> GetyAxisVertices(float axisHeight)
     {
-        std::vector<float> gridVertices;
-        gridVertices.reserve((gridSize * 2 + 1) * 12); // estimate
-
-        for (int i = -gridSize; i <= gridSize; ++i)
+        return
         {
-            // Line parallel to X axis
-            gridVertices.push_back(-gridSize * spacing);
-            gridVertices.push_back(0.0f);
-            gridVertices.push_back(i * spacing);
-
-            gridVertices.push_back(gridSize * spacing);
-            gridVertices.push_back(0.0f);
-            gridVertices.push_back(i * spacing);
-
-            // Line parallel to Z axis
-            gridVertices.push_back(i * spacing);
-            gridVertices.push_back(0.0f);
-            gridVertices.push_back(-gridSize * spacing);
-
-            gridVertices.push_back(i * spacing);
-            gridVertices.push_back(0.0f);
-            gridVertices.push_back(gridSize * spacing);
-        }
-
-        return gridVertices;
+            {{0.0f, -axisHeight, 0.0f}, {0.7f, 0.7f, 0.3f}},
+            {{0.0f,  axisHeight, 0.0f}, {0.7f, 0.7f, 0.3f}}   // (yellow color)
+        };
     }
 
-    inline const unsigned int GridIndices[] = {
-        0, 1, 2, 2, 3, 0
+    inline const std::vector<uint32_t> yAxisIndices = {0, 1};
+
+    inline const std::vector<Vertex> ScreenQuadVertices =
+    {
+        {{-1.0f, -1.0f, 0.0f}, {1, 1, 1}},
+        {{ 1.0f, -1.0f, 0.0f}, {1, 1, 1}},
+        {{ 1.0f,  1.0f, 0.0f}, {1, 1, 1}},
+
+        {{-1.0f, -1.0f, 0.0f}, {1, 1, 1}},
+        {{ 1.0f,  1.0f, 0.0f}, {1, 1, 1}},
+        {{-1.0f,  1.0f, 0.0f}, {1, 1, 1}}
     };
+
+    inline const std::vector<uint32_t> ScreenQuadIndices =
+    {
+        0, 1, 2,
+        3, 4, 5
+    };
+
+    // Infinite Grid
+    // inline std::vector<float> GenerateGridVertices(int gridSize = 1, float spacing = 1.0f)
+    // {
+    //     std::vector<float> gridVertices;
+    //     gridVertices.reserve((gridSize * 2 + 1) * 12); // estimate
+    //
+    //     for (int i = -gridSize; i <= gridSize; ++i)
+    //     {
+    //         // Line parallel to X axis
+    //         gridVertices.push_back(-gridSize * spacing);
+    //         gridVertices.push_back(0.0f);
+    //         gridVertices.push_back(i * spacing);
+    //
+    //         gridVertices.push_back(gridSize * spacing);
+    //         gridVertices.push_back(0.0f);
+    //         gridVertices.push_back(i * spacing);
+    //
+    //         // Line parallel to Z axis
+    //         gridVertices.push_back(i * spacing);
+    //         gridVertices.push_back(0.0f);
+    //         gridVertices.push_back(-gridSize * spacing);
+    //
+    //         gridVertices.push_back(i * spacing);
+    //         gridVertices.push_back(0.0f);
+    //         gridVertices.push_back(gridSize * spacing);
+    //     }
+    //
+    //     return gridVertices;
+    // }
+
+    // inline const unsigned int GridIndices[] = {
+    //     0, 1, 2, 2, 3, 0
+    // };
 
 }
 

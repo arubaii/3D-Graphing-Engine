@@ -9,8 +9,8 @@
 #include "Renderer.h"
 #include "Window.h"
 #include "io/Input.h"
-#include "scene_core/FreeCameraController.h"
-#include "scene_core/OrbitCameraController.h"
+#include "scene_core/Camera/FreeCameraController.h"
+#include "scene_core/Camera/OrbitCameraController.h"
 #include "math/RayHit.h"
 #include "math/Intersect.h"
 
@@ -31,6 +31,8 @@ class Scene
 public:
 
 	Scene(Window& window, Input& input);
+
+	void DrawScreenOverlays(const CameraComponent &cc, Renderer& renderer);
 
 	void Update(float dt, Input& input);
 	void Render(Renderer& renderer);
@@ -53,9 +55,13 @@ public:
 	void OnComponentAdded(Entity entity, T &component);
 
 	void DrawGrid(const CameraComponent& cc) const;
-	void TestCamera(float dt, Input& input);
 
 	bool Raycast(const Ray& ray, RayHit& outHit) const;
+
+	glm::vec3 GetMainCameraPos();
+	float	  GetMainCameraPitch();
+	float	  GetMainCameraYaw();
+
 
 private:
 	Window&   m_Window;
@@ -81,18 +87,21 @@ private:
 
 	unsigned int m_GridVAO = 0;
 	Ref<Shader> m_GridShader;
+	Ref<Shader> m_BasisShader;
 	Ref<Shader> m_BaseShader;
 	Ref<Shader> m_CrosshairShader;
 
 	VertexBufferLayout m_CrosshairLayout;
 	VertexBuffer m_CrosshairVB;
 	VertexArray m_CrosshairVA;
+
+	glm::vec3 CROSSHAIR_COLOR = glm::vec3(1.0f);
+
 public:
 	// Camera, see perspective camera for defaults --> refactor later
 	static constexpr glm::vec3 DefaultPosition{ 0.0f, 0.0f, 3.0f };
 	static constexpr float     DefaultPitch = 0.0f;
 	static constexpr float     DefaultYaw   = -90.0f;
-
 
 
 };

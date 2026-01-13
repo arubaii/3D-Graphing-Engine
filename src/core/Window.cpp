@@ -1,5 +1,6 @@
 #include "Window.h"
 #include "io/Input.h"
+#include "utils/Log.h"
 
 Window::Window(const WindowProperties& props)
     : m_WindowProperties(props)
@@ -10,7 +11,7 @@ Window::Window(const WindowProperties& props)
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    // glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // REQUIRED on macOS
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // REQUIRED on macOS
     // ===== Monitor and Window Size Query =====
     GLFWmonitor** monitors;
     int count;
@@ -38,7 +39,6 @@ Window::Window(const WindowProperties& props)
         m_WindowProperties.Width  = workW;
         m_WindowProperties.Height = workH;
     }
-
     // ===== Window Creation =====
     m_Window = glfwCreateWindow(m_WindowProperties.Width,
                                m_WindowProperties.Height,

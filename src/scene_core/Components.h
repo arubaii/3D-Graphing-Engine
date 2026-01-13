@@ -4,7 +4,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/quaternion.hpp>
-#include "PerspectiveCamera.h"
+#include "Camera/PerspectiveCamera.h"
 #include "renderer_core/IndexBuffer.h"
 #include "renderer_core/Mesh.h"
 #include "renderer_core/VertexArray.h"
@@ -41,6 +41,11 @@ struct IDComponent
 struct TagComponent
 {
 	std::string Tag;
+};
+
+struct ScreenComponent // Screen space; UI entities
+{
+	uint8_t _ = 0;	// Should be nonempty
 };
 
 

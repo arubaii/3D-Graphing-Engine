@@ -9,10 +9,10 @@
 Scene::Scene(Window& window, Input& input)
 	 :  m_Window(window),
 		m_CameraProps{
-		45.0f,
-		window.GetAspectRatio(),
-		0.1f,
-		1000.0f
+		45.0f,	// Fov
+		window.GetAspectRatio(), // Take a wild guess
+		0.1f,	// Near plane
+		1000.0f // Far plane
 		}
 
 {
@@ -26,39 +26,56 @@ Scene::Scene(Window& window, Input& input)
 	);
 	m_ActiveController = FREE_CONTROLLER_INDEX;
 
-	// Camera entity
-	Entity camera = CreateEntity(UUID(), "Main Camera");
-	auto& cc = camera.AddComponent<CameraComponent>(
-		m_CameraProps.Fov,
-		m_CameraProps.AspectRatio,
-		m_CameraProps.NearPlane,
-		m_CameraProps.FarPlane
-	);
-	cc.Primary = true;
-
-	// Forces camera init config (sometimes slightly off before)
-	cc.Camera.SetPosition(DefaultPosition);
-	cc.Camera.SetRotation(DefaultPitch, DefaultYaw);
-	cc.Camera.RecalculateView();
-	m_CameraControllers[m_ActiveController]->OnActivate(input);
 
 
 
-	Entity cube = CreateEntity(UUID(), "Cube");
+	{// =============== Set entities =======================
 
-	auto& mc = cube.AddComponent<MeshComponent>();
-	mc.MeshData = CreateRef<Mesh>();
-	mc.MeshData->Vertices = PRIMITIVES::CubeVertices;
-	mc.MeshData->Indices  = PRIMITIVES::CubeIndices;
+		// Camera entity
+		Entity camera = CreateEntity(UUID(), "Main Camera");
+		auto& cc = camera.AddComponent<CameraComponent>(
+			m_CameraProps.Fov,
+			m_CameraProps.AspectRatio,
+			m_CameraProps.NearPlane,
+			m_CameraProps.FarPlane
+		);
+		cc.Primary = true;
 
+		// Forces camera init config (sometimes slightly off before)
+		cc.Camera.SetPosition(DefaultPosition);
+		cc.Camera.SetRotation(DefaultPitch, DefaultYaw);
+		cc.Camera.RecalculateView();
+		m_CameraControllers[m_ActiveController]->OnActivate(input);
 
-	// Load grid shader
+		Entity cube = CreateEntity(UUID(), "Cube");
+		auto& cubeComponent = cube.AddComponent<MeshComponent>();
+		cubeComponent.MeshData = CreateRef<Mesh>();
+		cubeComponent.MeshData->Vertices = PRIMITIVES::CubeVertices;
+		cubeComponent.MeshData->Indices  = PRIMITIVES::CubeIndices;
+		cube.GetComponent<TransformComponent>().Translation = { -1.0f, -2.5f, -1.0f };
+
+		Entity yAxis = CreateEntity(UUID(), "Y-Axis");
+		auto& yAxisComponent = yAxis.AddComponent<MeshComponent>();
+		yAxisComponent.MeshData = CreateRef<Mesh>();
+		yAxisComponent.MeshData->Vertices = PRIMITIVES::GetyAxisVertices(m_CameraProps.FarPlane);
+		yAxisComponent.MeshData->Indices = PRIMITIVES::yAxisIndices;
+
+		// Position it at origin
+		yAxis.GetComponent<TransformComponent>().Translation = {0.0f, -2.5f, 0.0f};
+
+		// Entity screenQuad = CreateEntity(UUID(), "ScreenQuad");
+		//
+		// auto& mq = screenQuad.AddComponent<MeshComponent>();
+		// mq.MeshData = CreateRef<Mesh>();
+		// mq.MeshData->Vertices = PRIMITIVES::ScreenQuadVertices;
+		// mq.MeshData->Indices  = PRIMITIVES::ScreenQuadIndices;
+		// screenQuad.AddComponent<ScreenComponent>();
+
+	} // =================== End Block =========================
+
+	// Load shaders
 	m_GridShader = Shader::Create("infinite_grid.vert", "infinite_grid.frag");
 	m_BaseShader = Shader::Create("base.vert", "base.frag");
-
-	cube.GetComponent<TransformComponent>().Translation = { 0.0f, 0.0f, -5.0f };
-
-
 
 	m_CrosshairShader = Shader::Create("crosshair.vert", "crosshair.frag");
 	m_CrosshairLayout.Push<float>(3);
@@ -66,7 +83,42 @@ Scene::Scene(Window& window, Input& input)
 	m_CrosshairVA.AddBuffer(m_CrosshairVB, m_CrosshairLayout);
 	glGenVertexArrays(1, &m_GridVAO);
 
+
 }
+
+void Scene::DrawScreenOverlays(const CameraComponent& cc, Renderer& renderer)
+{
+	glDisable(GL_DEPTH_TEST);
+	glDepthMask(GL_FALSE);
+
+
+	// auto viewEnt = m_Registry.view<MeshComponent, TagComponent>();
+	// for (auto e : viewEnt)
+	// {
+	// 	auto& tag = m_Registry.get<TagComponent>(e);
+	//
+	// 	Entity entity{e, this};
+	// 	if (entity.HasComponent<ScreenComponent>())
+	// 	{
+	// 		LOG(entity.GetTag());
+	// 		auto& mc = m_Registry.get<MeshComponent>(e);
+	// 		GPUMesh& gpu = MeshRendererCache::GetOrCreate(*mc.MeshData);
+	//
+	// 		renderer.Draw(gpu.VA, gpu.IB);
+	// 	}
+	// }
+
+	glDepthMask(GL_TRUE);
+
+	// CROSSHAIR
+	m_CrosshairShader->Bind();
+	m_CrosshairShader->SetVec3("u_Color", CROSSHAIR_COLOR);
+	m_CrosshairVA.Bind();
+	glLineWidth(10.0f);
+	glDrawArrays(GL_LINES, 0, 4);
+
+}
+
 
 void Scene::DrawGrid(const CameraComponent& cc) const
 {
@@ -74,20 +126,21 @@ void Scene::DrawGrid(const CameraComponent& cc) const
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glDepthMask(GL_FALSE);
 
+	glBindVertexArray(m_GridVAO);
+
 	m_GridShader->Bind();
 	m_GridShader->SetFloat("GridHeight", -2.5f);
 	m_GridShader->SetMat4("Projection", cc.Camera.GetProjectionMatrix());
 	m_GridShader->SetMat4("View", cc.Camera.GetViewMatrix());
 	m_GridShader->SetVec3("CameraWorldPos", cc.Camera.GetPosition());
-
-
-	glBindVertexArray(m_GridVAO);
 	glDrawArrays(GL_TRIANGLES, 0, 6);
+
 	glBindVertexArray(0);
 
 	glDepthMask(GL_TRUE);
 	glDisable(GL_BLEND);
 }
+
 
 void Scene::Render(Renderer& renderer)
 {
@@ -106,9 +159,14 @@ void Scene::Render(Renderer& renderer)
 
 	m_BaseShader->Bind();
 	renderer.SetShader(m_BaseShader);
-	auto view = m_Registry.view<TransformComponent, MeshComponent>();
+	auto view = m_Registry.view<TransformComponent, MeshComponent, TagComponent>();
 	for (auto e : view)
 	{
+		auto& tag = m_Registry.get<TagComponent>(e);
+
+		if (tag.Tag == "ScreenQuad")
+			continue;
+
 		auto& tc = m_Registry.get<TransformComponent>(e);
 		auto& mc = m_Registry.get<MeshComponent>(e);
 
@@ -117,19 +175,15 @@ void Scene::Render(Renderer& renderer)
 		glm::mat4 MVP = VP * tc.GetTransform();
 		m_BaseShader->SetMat4("u_MVP", MVP);
 
-		renderer.Draw(gpu.VA, gpu.IB);
-
+		if (tag.Tag == "Y-Axis")
+		{
+			renderer.DrawLines(gpu.VA, gpu.IB);
+		}
+		else
+			renderer.Draw(gpu.VA, gpu.IB);
 	}
-
-	// CROSSHAIR
-	glDisable(GL_DEPTH_TEST);
-
-
-	m_CrosshairShader->Bind();
-	m_CrosshairShader->SetVec3("color", glm::vec3(1.0f));
-	m_CrosshairVA.Bind();
-	glDrawArrays(GL_LINES, 0, 4);
-
+	// Draw last
+	DrawScreenOverlays(cc, renderer);
 }
 
 void Scene::Update(float dt, Input& input)
@@ -159,7 +213,11 @@ void Scene::Update(float dt, Input& input)
 	glm::vec2 mousePos = input.GetMousePos();
 	glm::vec2 viewport = m_Window.GetViewPort();
 	glm::vec2 center = viewport * 0.5f;
-	Ray ray = cc.Camera.GetRayFromScreen(center, viewport);
+	Ray ray;
+	if (input.IsCursorEnabled())
+		ray = cc.Camera.GetRayFromScreen(input.GetMousePos(), viewport);
+	else // Crosshair position
+		ray = cc.Camera.GetRayFromScreen(center, viewport);
 
 	RayHit hit;
 	bool hasHit = Raycast(ray, hit) && hit.entity != entt::null;
@@ -170,6 +228,7 @@ void Scene::Update(float dt, Input& input)
 
 	if (hasHit)
 	{
+		CROSSHAIR_COLOR = glm::vec3(1.0f, 0.0f, 0.0f);
 		Entity entity{ hit.entity, this };
 
 		if (input.IsMousePressedOnce(Mouse::Middle))
@@ -183,6 +242,9 @@ void Scene::Update(float dt, Input& input)
 			}
 		}
 	}
+	else
+		CROSSHAIR_COLOR = glm::vec3(1.0f);
+
 
 	// ======================================================================================= //
 	// ======================================================================================= //
@@ -209,12 +271,12 @@ void Scene::Update(float dt, Input& input)
 	//		 - Add cursor to move entity, so that the entire camera doesn't move
 	//		 - Add a bounding area around the camera for more consistent dragging,
 	//		   rather than a max distance
-	constexpr float MAX_DRAG_DISTANCE = 25.0f;
+	constexpr float MAX_DRAG_DISTANCE = 250.0f;
 	if (m_IsDragging &&
 		input.IsMousePressed(Mouse::Left) &&
 		m_DraggedEntity != entt::null)
 	{
-		glm::vec3 planeHit;
+		glm::vec3 planeHit; // Don't allow objects to pass through the plane
 		if (IntersectPlane(ray, 0.0f, planeHit))
 		{
 			Entity dragged{ m_DraggedEntity, this };
@@ -245,44 +307,8 @@ void Scene::Update(float dt, Input& input)
 	// ============================================================= //
 
 
-	// // ============= Camera Type Swapping =============
-	// if (input.IsMousePressedOnce(Mouse::Middle))
-	// {
-	// 	// Cycle through camera options
-	// 	m_ActiveController =
-	// 		(m_ActiveController + 1) % m_CameraControllers.size();
-	// 	m_CameraControllers[m_ActiveController]->OnActivate(input);
-	// }
-
 }
 
-void Scene::TestCamera(float dt, Input& input)
-{
-	static float printTimer = 0.0f;
-	printTimer += dt;
-
-	if (printTimer < 0.25)
-		return;
-	printTimer = 0.0f;
-
-	Entity camEntity = GetPrimaryCameraEntity();
-	if (!camEntity)
-		return;
-
-	const auto& cc = camEntity.GetComponent<CameraComponent>();
-
-	const glm::vec3 pos = cc.Camera.GetPosition();
-	const glm::vec3 fwd = cc.Camera.GetForwardVector();
-	LOG(
-		"Camera Pos: (",
-		pos.x, ", ",
-		pos.y, ", ",
-		pos.z, ") | Forward: (",
-		fwd.x, ", ",
-		fwd.y, ", ",
-		fwd.z, ")"
-	);
-}
 
 bool Scene::Raycast(const Ray& ray, RayHit& outHit) const
 {
@@ -301,8 +327,7 @@ bool Scene::Raycast(const Ray& ray, RayHit& outHit) const
 
 		const auto& vertices = mc.MeshData->Vertices;
 		const auto& indices  = mc.MeshData->Indices;
-		// LOG("Ray origin: ", ray.Origin);
-		// LOG("Ray dir: ", ray.Direction);
+
 		for (size_t i = 0; i < indices.size(); i += 3)
 		{
 			glm::vec3 v0 = glm::vec3(model * glm::vec4(vertices[indices[i+0]].Position, 1.0f));
@@ -357,6 +382,30 @@ Entity Scene::GetPrimaryCameraEntity()
 	return {};
 }
 
+glm::vec3 Scene::GetMainCameraPos()
+{
+	Entity camEntity = GetPrimaryCameraEntity();
+	auto& cc = camEntity.GetComponent<CameraComponent>();
+	glm::vec3 pos = cc.Camera.GetPosition();
+	return pos;
+}
+
+float Scene::GetMainCameraPitch()
+{
+	Entity camEntity = GetPrimaryCameraEntity();
+	auto& cc = camEntity.GetComponent<CameraComponent>();
+	float pitch = cc.Camera.GetPitch();
+	return pitch;
+}
+
+float Scene::GetMainCameraYaw()
+{
+	Entity camEntity = GetPrimaryCameraEntity();
+	auto& cc = camEntity.GetComponent<CameraComponent>();
+	float yaw = cc.Camera.GetYaw();
+	return yaw;
+}
+
 
 Entity Scene::InitEntity(const std::string& name)
 {
@@ -383,14 +432,8 @@ void Scene::DeleteEntity(Entity entity)
 	m_Registry.destroy(entity);
 }
 
-template<>
-void Scene::OnComponentAdded<IDComponent>(Entity entity, IDComponent& component) {}
-template<>
-void Scene::OnComponentAdded<TagComponent>(Entity entity, TagComponent& component) {}
-template<>
-void Scene::OnComponentAdded<TransformComponent>(Entity entity, TransformComponent& component) {}
-template<>
-void Scene::OnComponentAdded<MeshComponent>(Entity, MeshComponent&) {}
+template<typename T>
+void Scene::OnComponentAdded(Entity, T&) {}
 
 template<>
 void Scene::OnComponentAdded<CameraComponent>(Entity entity, CameraComponent& component)

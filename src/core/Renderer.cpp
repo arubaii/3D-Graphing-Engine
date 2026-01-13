@@ -15,3 +15,14 @@ void Renderer::Draw(const VertexArray& va, const IndexBuffer& ib) const
 
 	glDrawElements(GL_TRIANGLES, ib.GetCount(), GL_UNSIGNED_INT, nullptr);
 }
+
+void Renderer::DrawLines(const VertexArray& va, const IndexBuffer& ib) const
+{
+	assert(m_Shader);
+
+	m_Shader->Bind();
+	va.Bind();
+	ib.Bind();
+
+	glDrawElements(GL_LINES, ib.GetCount(), GL_UNSIGNED_INT, nullptr);
+}

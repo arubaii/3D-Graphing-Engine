@@ -7,8 +7,8 @@
 
 struct WindowProperties
 {
-	unsigned int Width  = 640;
-	unsigned int Height = 640;
+	unsigned int Width = 0;
+	unsigned int Height = 0;
 	std::string Title   = "OpenGL";
 	unsigned int MonitorSelected = 0;
 
@@ -20,6 +20,9 @@ class Window
 public:
 	Window(const WindowProperties& props = WindowProperties());
 	~Window();
+
+	// Use sparingly, currently only used for m_ImGuiLayer in Application.cpp
+	GLFWwindow* GetGLFWwindow() const { return m_Window; }
 
 	int	GetWidth()  const { return m_WindowProperties.Width; }
 	int	GetHeight()	const { return m_WindowProperties.Height; }

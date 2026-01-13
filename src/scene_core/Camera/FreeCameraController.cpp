@@ -8,18 +8,16 @@ void FreeCameraController::Update(float dt, Input& input)
 {
 	assert(m_Camera && "Camera not bound to FreeCameraController");
 
-	if (input.IsCursorEnabled())
-		return;
+
 
 	const float velocity = m_MoveSpeed * dt;
 
 	// Direction vectors
 	glm::vec3 forward = m_Camera->GetForwardVector();
 	glm::vec3 right   = m_Camera->GetRightVector();
-	glm::vec3 up	  = m_Camera->GetUpVector();
+	glm::vec3 up	  = glm::vec3(0.0f, 1.0f, 0.0f);
 
 	glm::vec3 position = m_Camera->GetPosition();
-
 	// =========== Keyboard Movement ===========
 
 	glm::vec3 move{0.0f};
@@ -36,20 +34,22 @@ void FreeCameraController::Update(float dt, Input& input)
 
 	m_Camera->SetPosition(position);
 
-	// ============ Mouse Movement ============
-	glm::vec2 mouse = input.GetMouseDelta();
+	if (!input.IsCursorEnabled())
+	{
+		// ============ Mouse Movement ============
+		glm::vec2 mouse = input.GetMouseDelta();
 
-	float yaw   = m_Camera->GetYaw();
-	float pitch = m_Camera->GetPitch();
+		float yaw   = m_Camera->GetYaw();
+		float pitch = m_Camera->GetPitch();
 
-	yaw   += mouse.x * m_MouseSensitivity;
-	pitch += mouse.y * m_MouseSensitivity;
+		yaw   += mouse.x * m_MouseSensitivity;
+		pitch += mouse.y * m_MouseSensitivity;
 
-	pitch = std::clamp(pitch, -89.0f, 89.0f);
+		pitch = std::clamp(pitch, -89.0f, 89.0f);
 
-	m_Camera->SetRotation(pitch, yaw);
-	m_Camera->RecalculateView();
-
+		m_Camera->SetRotation(pitch, yaw);
+	}
+		m_Camera->RecalculateView();
 }
 
 void FreeCameraController::OnActivate(Input& input)

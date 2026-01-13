@@ -20,6 +20,8 @@ public:
     }
 	void Clear() const;
 	void Draw(const VertexArray& va, const IndexBuffer& ib) const;
+	void DrawLines(const VertexArray &va, const IndexBuffer &ib) const;
+
 private:
 	Ref<Shader> m_Shader;
 };

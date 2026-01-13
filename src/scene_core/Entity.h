@@ -3,6 +3,7 @@
 #include <glm/vec3.hpp>
 #include <cassert>
 #include "core/Scene.h"
+#include "Components.h"
 
 
 
@@ -21,8 +22,14 @@ public:
 	template<typename T, typename... Args>
 	T& AddComponent(Args&&... args)
 	{
-		// assert(HasComponent<T>() && "entity has component already");
-		T& component = m_Scene->m_Registry.emplace<T>(m_EntityHandle, std::forward<Args>(args)...);
+		assert(!HasComponent<T>() && "Entity already has component!");
+
+		// emplace may return void — do NOT capture it
+		m_Scene->m_Registry.emplace<T>(m_EntityHandle, std::forward<Args>(args)...);
+
+		// Always fetch explicitly
+		T& component = m_Scene->m_Registry.get<T>(m_EntityHandle);
+
 		m_Scene->OnComponentAdded<T>(*this, component);
 		return component;
 	}
@@ -52,11 +59,18 @@ public:
 		return m_Scene->m_Registry.any_of<T>(m_EntityHandle);
 	}
 
+
 	template<typename T>
 	void RemoveComponent()
 	{
 		assert(HasComponent<T>() && "entity does not have component");
 		m_Scene->m_Registry.remove<T>(m_EntityHandle);
+	}
+
+
+	const std::string& GetTag() const
+	{
+		return GetComponent<TagComponent>().Tag;
 	}
 
 	operator bool()			const { return m_EntityHandle != entt::null; }

@@ -4,6 +4,8 @@
 #include "Renderer.h"
 #include "Scene.h"
 #include "io/Input.h"
+#include "ui/ImGuiLayer.h"
+#include "ui/DebugPanel.h"
 #include "renderer_core/Shader.h"
 
 struct ApplicationProperties
@@ -37,9 +39,10 @@ private:
 	Scope<Window>     m_Window;
 	Scope<Renderer>   m_Renderer;
 	Scope<Scene>      m_Scene;
-	// Scope<ImGuiLayer> m_ImGuiLayer;
-	Scope<Shader> m_Shader;
-	Input	   m_Input;
+	Scope<ImGuiLayer> m_ImGuiLayer;
+	Scope<Shader>	  m_Shader;
+	Input			  m_Input;
+	DebugData		  m_DebugData{};
 
 
 	double m_LastFrame;
