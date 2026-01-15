@@ -1,5 +1,5 @@
-#include "GLcommon.h"
 #include "IndexBuffer.h"
+
 
 
 IndexBuffer::IndexBuffer(uint32_t count, const unsigned int* data)

@@ -13,6 +13,7 @@
 #include "scene_core/Camera/OrbitCameraController.h"
 #include "math/RayHit.h"
 #include "math/Intersect.h"
+#include "scene_core/surface/SurfaceMesh.h"
 
 
 
@@ -62,7 +63,7 @@ public:
 	float	  GetMainCameraPitch();
 	float	  GetMainCameraYaw();
 
-
+	SurfaceSampling ComputeSamplingFromCamera(const PerspectiveCamera& cam);
 private:
 	Window&   m_Window;
 	CameraProps m_CameraProps;
@@ -74,6 +75,7 @@ private:
 	std::size_t FREE_CONTROLLER_INDEX = 0;
 	std::size_t ORBIT_CONTROLLER_INDEX = 1;
 	float MOVE_PLANE_Y = 0.0f;
+
 
 
 	friend class Entity;
@@ -90,6 +92,8 @@ private:
 	Ref<Shader> m_BasisShader;
 	Ref<Shader> m_BaseShader;
 	Ref<Shader> m_CrosshairShader;
+	Ref<Shader> m_LightShader;
+	Ref<Shader> m_PhongShader;
 
 	VertexBufferLayout m_CrosshairLayout;
 	VertexBuffer m_CrosshairVB;

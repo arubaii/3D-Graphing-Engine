@@ -18,4 +18,6 @@ public:
 	void OnActivate(Input& input) override;		// Reset mouse deltas
 	void OnSelect(const glm::vec3& position) override { SetPivot(position); }
 
+
+
 };

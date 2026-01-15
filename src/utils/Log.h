@@ -6,6 +6,16 @@
 #include <algorithm>
 #include <glm/glm.hpp>
 
+#define TRY_MATH(expr)                                      \
+    do {                                                    \
+        try {                                               \
+            expr;                                           \
+        } catch (const std::exception& e) {                 \
+            LOG_ERROR("[Math Parser] ", e.what());    \
+        }                                                   \
+    } while (0)
+
+
 template<typename... Args>
 void LOG(Args&&... args)
 {
@@ -13,7 +23,7 @@ void LOG(Args&&... args)
 }
 
 template<typename... Args>
-void LOGError(Args&&... args)
+void LOG_ERROR(Args&&... args)
 {
 	(std::cerr << ... << args) << '\n';
 }

@@ -12,18 +12,29 @@ public:
 	void SetRotation(float pitch, float yaw) { m_Pitch = pitch; m_Yaw = yaw; GetViewMatrix(); }
 	void SetAspect(float aspect)			 { m_Aspect = aspect; }
 
-	const float GetYaw()           const { return m_Yaw; }
-	const float GetPitch()         const { return m_Pitch; }
+	const float 	 GetYaw()    		   const		  { return m_Yaw; }
+	const float 	 GetPitch()  		   const		  { return m_Pitch; }
+	const float 	 GetFOV()    		   const		  { return m_FOV;}
 
 	const glm::mat4& GetViewMatrix()	   const override { return m_ViewMatrix; }
 	const glm::mat4& GetProjectionMatrix() const override { return m_ProjectionMatrix; }
 	const glm::vec3& GetPosition()		   const override { return m_Position; }
-	glm::vec3 GetForwardVector() const override;
-	glm::vec3 GetRightVector() const override;
-	glm::vec3 GetUpVector() const override;
+
+	glm::vec3 		 GetForwardVector()    const override;
+	glm::vec3 		 GetRightVector()	   const override;
+	glm::vec3 		 GetUpVector()		   const override;
 
 	void RecalculateView();
 	void RecalculateProjection();
+
+
+	float GetWorldUnitsPerPixel(float depth) const
+	{
+		// vertical span at depth
+		float height = 2.0f * depth * std::tan(m_FOV * 0.5f);
+		return height / m_ViewportHeight;
+	}
+
 private:
 	float m_FOV, m_Aspect, m_Near, m_Far;
 	float m_Pitch = 0.0f, m_Yaw = -90.0f;

@@ -9,7 +9,6 @@ void FreeCameraController::Update(float dt, Input& input)
 	assert(m_Camera && "Camera not bound to FreeCameraController");
 
 
-
 	const float velocity = m_MoveSpeed * dt;
 
 	// Direction vectors
@@ -22,12 +21,15 @@ void FreeCameraController::Update(float dt, Input& input)
 
 	glm::vec3 move{0.0f};
 
-	if (input.IsKeyPressed(Key::W)) 	   move += forward;
-	if (input.IsKeyPressed(Key::S)) 	   move -= forward;
-	if (input.IsKeyPressed(Key::A)) 	   move -= right;
-	if (input.IsKeyPressed(Key::D))		   move += right;
-	if (input.IsKeyPressed(Key::Space))    move += up;
-	if (input.IsKeyPressed(Key::LeftCtrl)) move -= up;
+	if (input.IsKeyboardEnabled())
+	{
+		if (input.IsKeyPressed(Key::W)) 	   move += forward;
+		if (input.IsKeyPressed(Key::S)) 	   move -= forward;
+		if (input.IsKeyPressed(Key::A)) 	   move -= right;
+		if (input.IsKeyPressed(Key::D))		   move += right;
+		if (input.IsKeyPressed(Key::Space))    move += up;
+		if (input.IsKeyPressed(Key::LeftCtrl)) move -= up;
+	}
 
 	if (move != glm::vec3(0.0f))
 		position += glm::normalize(move) * velocity;

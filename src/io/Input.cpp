@@ -1,6 +1,7 @@
-#include "Input.h"
-#include "../utils/Log.h"
+#include <imgui.h>
 #include <iostream>
+#include "Input.h"
+#include "utils/Log.h"
 
 Input* Input::s_Instance = nullptr;
 
@@ -27,6 +28,20 @@ void Input::Update(double deltaTime)
 		s_Mouse.cursorEnabled = !s_Mouse.cursorEnabled;
 		s_Mouse.first = true;
 	}
+
+	// Disabled keyboard input when clicking into the ImGUI window
+	for (int b = 0; b <= GLFW_MOUSE_BUTTON_LAST; ++b)
+	{
+		bool isDown = glfwGetMouseButton(m_Window, b) == GLFW_PRESS;
+
+		s_Mouse.pressedOnce[b]  =  isDown && !s_Mouse.down[b];
+		s_Mouse.releasedOnce[b] = !isDown &&  s_Mouse.down[b];
+		s_Mouse.down[b] = isDown;
+	}
+
+	if (s_Mouse.releasedOnce[GLFW_MOUSE_BUTTON_LEFT])
+		s_KeyboardEnabled = !ImGui::GetIO().WantCaptureKeyboard;
+
 }
 
 bool Input::IsKeyPressed(int key) const
@@ -36,6 +51,7 @@ bool Input::IsKeyPressed(int key) const
 
 bool Input::IsKeyPressedOnce(int key)
 {
+
 	bool isDown  = IsKeyPressed(key);
 	bool wasDown = m_LastKeyState[key];
 
@@ -44,19 +60,19 @@ bool Input::IsKeyPressedOnce(int key)
 	return isDown && !wasDown;
 }
 
-bool Input::IsMousePressed(int mouseButton) const
+bool Input::IsKeyboardEnabled() const
 {
-	return glfwGetMouseButton(m_Window, mouseButton);
+	return s_KeyboardEnabled;
 }
 
-bool Input::IsMousePressedOnce(int mouseButton)
+bool Input::IsMousePressed(int button) const
 {
-	bool isDown  = IsMousePressed(mouseButton);
-	bool wasDown = m_LastMouseButtonState[mouseButton];
+	return s_Mouse.down[button];
+}
 
-	m_LastMouseButtonState[mouseButton] = isDown;
-
-	return isDown && !wasDown;
+bool Input::IsMousePressedOnce(int button)
+{
+	return s_Mouse.pressedOnce[button];
 }
 
 glm::vec2 Input::GetMouseDelta()
@@ -106,12 +122,6 @@ void Input::MouseButtonCallback(GLFWwindow* window, int button, int action, int 
 
 	auto& mouse = s_Instance->s_Mouse;
 
-	// if (s_Instance->s_Mouse.cursorEnabled && action == GLFW_PRESS)
-	// {
-	// 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-	// 	s_Instance->s_Mouse.cursorEnabled = false;
-	// 	s_Instance->s_Mouse.first = true;
-	// }
 }
 
 // MouseScroll Input::s_Scroll{};

@@ -12,7 +12,7 @@ Scene::Scene(Window& window, Input& input)
 		45.0f,	// Fov
 		window.GetAspectRatio(), // Take a wild guess
 		0.1f,	// Near plane
-		1000.0f // Far plane
+		100000.0f // Far plane
 		}
 
 {
@@ -47,12 +47,39 @@ Scene::Scene(Window& window, Input& input)
 		cc.Camera.RecalculateView();
 		m_CameraControllers[m_ActiveController]->OnActivate(input);
 
-		Entity cube = CreateEntity(UUID(), "Cube");
-		auto& cubeComponent = cube.AddComponent<MeshComponent>();
-		cubeComponent.MeshData = CreateRef<Mesh>();
-		cubeComponent.MeshData->Vertices = PRIMITIVES::CubeVertices;
-		cubeComponent.MeshData->Indices  = PRIMITIVES::CubeIndices;
-		cube.GetComponent<TransformComponent>().Translation = { -1.0f, -2.5f, -1.0f };
+		std::vector<Vertex> lightVerts = {
+			// position                 normal           tex     color
+			{{-0.5f,-0.5f,-0.5f}, {0,0,0}, {0,0}, {1,1,1}},
+			{{ 0.5f,-0.5f,-0.5f}, {0,0,0}, {0,0}, {1,1,1}},
+			{{ 0.5f, 0.5f,-0.5f}, {0,0,0}, {0,0}, {1,1,1}},
+			{{-0.5f, 0.5f,-0.5f}, {0,0,0}, {0,0}, {1,1,1}},
+			{{-0.5f,-0.5f, 0.5f}, {0,0,0}, {0,0}, {1,1,1}},
+			{{ 0.5f,-0.5f, 0.5f}, {0,0,0}, {0,0}, {1,1,1}},
+			{{ 0.5f, 0.5f, 0.5f}, {0,0,0}, {0,0}, {1,1,1}},
+			{{-0.5f, 0.5f, 0.5f}, {0,0,0}, {0,0}, {1,1,1}},
+		};
+
+		std::vector<uint32_t> lightIdx = {
+			0,1,2, 2,3,0,
+			4,5,6, 6,7,4,
+			0,4,7, 7,3,0,
+			1,5,6, 6,2,1,
+			3,2,6, 6,7,3,
+			0,1,5, 5,4,0
+		};
+
+		// ================= LIGHT CUBE =================
+		Entity light = CreateEntity(UUID(), "Light");
+
+		auto& lightComponent = light.AddComponent<MeshComponent>();
+		lightComponent.MeshData = CreateRef<Mesh>();
+		lightComponent.MeshData->Vertices = lightVerts;
+		lightComponent.MeshData->Indices  = lightIdx;
+		// Small cube
+		light.GetComponent<TransformComponent>().Scale =	   {5.0f, 5.0f, 5.0f};
+		light.GetComponent<TransformComponent>().Translation = {5.0f, -2.5f, 10.0f};
+
+
 
 		Entity yAxis = CreateEntity(UUID(), "Y-Axis");
 		auto& yAxisComponent = yAxis.AddComponent<MeshComponent>();
@@ -62,27 +89,42 @@ Scene::Scene(Window& window, Input& input)
 
 		// Position it at origin
 		yAxis.GetComponent<TransformComponent>().Translation = {0.0f, -2.5f, 0.0f};
+		auto& lightTC = light.GetComponent<TransformComponent>();
+		auto& axisTC  = yAxis.GetComponent<TransformComponent>();
 
-		// Entity screenQuad = CreateEntity(UUID(), "ScreenQuad");
-		//
-		// auto& mq = screenQuad.AddComponent<MeshComponent>();
-		// mq.MeshData = CreateRef<Mesh>();
-		// mq.MeshData->Vertices = PRIMITIVES::ScreenQuadVertices;
-		// mq.MeshData->Indices  = PRIMITIVES::ScreenQuadIndices;
-		// screenQuad.AddComponent<ScreenComponent>();
+
+		// ================= TEST SURFACE =================
+		Entity surface = CreateEntity(UUID(), "Surface");
+
+		auto& mc = surface.AddComponent<MeshComponent>();
+		mc.MeshData = CreateRef<Mesh>();
+
+		SurfaceSampling sampling = ComputeSamplingFromCamera(cc.Camera);
+
+		SurfaceEvaluator eval(
+			SurfaceType::ExplicitXY,
+			MathParser::CompiledExpression("cos(x) + sin(y)")
+		);
+
+		SurfaceMesh surfaceMesh;
+		surfaceMesh.Build(sampling, eval);
+
+		mc.MeshData->Vertices = surfaceMesh.GetVertices();
+		mc.MeshData->Indices  = surfaceMesh.GetIndices();
 
 	} // =================== End Block =========================
 
 	// Load shaders
-	m_GridShader = Shader::Create("infinite_grid.vert", "infinite_grid.frag");
-	m_BaseShader = Shader::Create("base.vert", "base.frag");
+	m_GridShader  = Shader::Create("infinite_grid.vert", "infinite_grid.frag");
+	m_LightShader = Shader::Create("light.vert", "light.frag");
+	m_BaseShader  = Shader::Create("base.vert", "base.frag");
+	m_PhongShader = Shader::Create("phong.vert", "phong.frag");
 
 	m_CrosshairShader = Shader::Create("crosshair.vert", "crosshair.frag");
 	m_CrosshairLayout.Push<float>(3);
 	m_CrosshairVB = VertexBuffer(sizeof(PRIMITIVES::CrosshairVertices), PRIMITIVES::CrosshairVertices);
 	m_CrosshairVA.AddBuffer(m_CrosshairVB, m_CrosshairLayout);
 	glGenVertexArrays(1, &m_GridVAO);
-
 
 }
 
@@ -144,6 +186,7 @@ void Scene::DrawGrid(const CameraComponent& cc) const
 
 void Scene::Render(Renderer& renderer)
 {
+	glDisable(GL_CULL_FACE);
 	glEnable(GL_DEPTH_TEST);
 	Entity cam = GetPrimaryCameraEntity();
 	if (!cam) return;
@@ -157,34 +200,76 @@ void Scene::Render(Renderer& renderer)
 		cc.Camera.GetProjectionMatrix() *
 		cc.Camera.GetViewMatrix();
 
-	m_BaseShader->Bind();
-	renderer.SetShader(m_BaseShader);
+	glm::vec3 lightPos{0.0f};
+	glm::vec4 lightColor{1.0f};
+	glm::mat4 lightModel{1.0f};
+
+	auto lightView = m_Registry.view<TransformComponent, TagComponent>();
+	for (auto e : lightView)
+	{
+		auto& tag = lightView.get<TagComponent>(e);
+		if (tag.Tag == "Light")
+		{
+			auto& tc = lightView.get<TransformComponent>(e);
+			lightModel = tc.GetTransform();
+			lightPos   = cc.Camera.GetPosition();   // or extract from matrix
+			break;
+		}
+	}
 	auto view = m_Registry.view<TransformComponent, MeshComponent, TagComponent>();
 	for (auto e : view)
 	{
 		auto& tag = m_Registry.get<TagComponent>(e);
-
-		if (tag.Tag == "ScreenQuad")
-			continue;
-
-		auto& tc = m_Registry.get<TransformComponent>(e);
-		auto& mc = m_Registry.get<MeshComponent>(e);
+		auto& tc  = m_Registry.get<TransformComponent>(e);
+		auto& mc  = m_Registry.get<MeshComponent>(e);
 
 		GPUMesh& gpu = MeshRendererCache::GetOrCreate(*mc.MeshData);
 
-		glm::mat4 MVP = VP * tc.GetTransform();
-		m_BaseShader->SetMat4("u_MVP", MVP);
+		glm::mat4 model = tc.GetTransform();
+		glm::mat4 MVP   = VP * model;
 
-		if (tag.Tag == "Y-Axis")
+		if (tag.Tag == "Light")
 		{
-			renderer.DrawLines(gpu.VA, gpu.IB);
+			glm::mat4 lightModel = glm::translate(glm::mat4(1.0f), lightPos - glm::vec3(1.0f, 0.0f, 1.0f))
+					 * glm::scale(glm::mat4(1.0f), glm::vec3(0.3f));
+			MVP = VP * lightModel;
+			m_LightShader->Bind();
+			renderer.SetShader(m_LightShader);
+
+			m_LightShader->SetMat4("u_MVP", MVP);
+			m_LightShader->SetVec4("u_LightColor", lightColor);
+			renderer.Draw(gpu.VA, gpu.IB);
 		}
 		else
-			renderer.Draw(gpu.VA, gpu.IB);
+		{
+
+			m_PhongShader->Bind();
+			renderer.SetShader(m_PhongShader);
+			m_PhongShader->SetPhongUniforms
+			(
+				model,                              // Model
+				cc.Camera.GetProjectionMatrix(),    // Projection
+				lightModel,                         // Light model matrix (cached earlier)
+				lightColor,                         // Light color
+				cc.Camera                           // Camera
+			);
+
+			if (tag.Tag == "Y-Axis")
+			{
+				m_BaseShader->Bind();
+				renderer.SetShader(m_BaseShader);
+				m_BaseShader->SetMat4("u_MVP", MVP);
+				m_BaseShader->SetMat4("u_Model", model);
+				renderer.DrawLines(gpu.VA, gpu.IB);
+			}
+			else
+				renderer.Draw(gpu.VA, gpu.IB);
+		}
 	}
 	// Draw last
 	DrawScreenOverlays(cc, renderer);
 }
+
 
 void Scene::Update(float dt, Input& input)
 {
@@ -406,6 +491,32 @@ float Scene::GetMainCameraYaw()
 	return yaw;
 }
 
+SurfaceSampling Scene::ComputeSamplingFromCamera(const PerspectiveCamera& cam)
+{
+	constexpr float DOMAIN_RADIUS = 500000.0f;
+	constexpr int TARGET_PIXELS_PER_SAMPLE = 2;
+
+	glm::vec3 camPos = cam.GetPosition();
+	glm::vec3 surfaceCenter = { 0.0f, -2.5f, 0.0f }; // same transform as surface entity
+	float distance = glm::length(camPos - surfaceCenter);
+
+	float unitsPerPixel = cam.GetWorldUnitsPerPixel(distance);
+
+	float worldStep = unitsPerPixel * TARGET_PIXELS_PER_SAMPLE;
+
+	float domainSize = 2.0f * DOMAIN_RADIUS;
+
+	int resolution = static_cast<int>(domainSize / worldStep);
+	resolution = std::clamp(resolution, 16, 512);
+
+	return SurfaceSampling{
+		-DOMAIN_RADIUS, // xMin
+		-DOMAIN_RADIUS, // yMin
+		 DOMAIN_RADIUS, // xMax
+		 DOMAIN_RADIUS, // yMax
+		128				// fixed res for now
+	};
+}
 
 Entity Scene::InitEntity(const std::string& name)
 {

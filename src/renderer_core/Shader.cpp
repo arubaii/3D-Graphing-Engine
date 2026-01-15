@@ -9,7 +9,7 @@ std::string Shader::LoadFile(const std::string &path)
 	std::ifstream file(path);
 	if (!file.is_open())
 	{
-		LOGError("Failed to load file: ", path);
+		LOG_ERROR("Failed to load file: ", path);
 		throw std::runtime_error("Shader file load failed");
 	}
 
@@ -33,7 +33,7 @@ unsigned int Shader::CompileShader(GLenum type, const std::string &source)
 	{
 		char infoLog[512];
 		glGetShaderInfoLog(ID, 512, nullptr, infoLog);
-		LOGError
+		LOG_ERROR
 		(
 			"Shader compile error (",
 			(type == GL_VERTEX_SHADER ? "VERTEX" : "Fragment"),
@@ -68,7 +68,7 @@ Shader::Shader(const std::string &vertexPath, const std::string &fragmentPath)
 	{
 		char infoLog[512];
 		glGetProgramInfoLog(ID, 512, nullptr, infoLog);
-		LOGError("ERROR::PROGRAM::LINKING_FAILED\n", infoLog);
+		LOG_ERROR("ERROR::PROGRAM::LINKING_FAILED\n", infoLog);
 		throw std::runtime_error("Shader(s) failed to link");
 	}
 
@@ -78,6 +78,24 @@ Shader::Shader(const std::string &vertexPath, const std::string &fragmentPath)
 }
 
 Shader::~Shader() {};
+
+void Shader::SetPhongUniforms
+(
+	const glm::mat4& Model,
+	const glm::mat4& Projection,
+	const glm::mat4& lightModel,
+	const glm::vec4& lightColor,
+	PerspectiveCamera camera
+)
+{
+	glm::mat4 View = camera.GetViewMatrix();
+	glm::mat4 MVP = Projection * View * Model;
+	SetMat4("u_Model", Model);
+	SetMat4("u_MVP", MVP);
+	SetVec3("cameraPos", camera.GetPosition());
+	SetVec3("lightPos", glm::vec3(lightModel[3]));
+	SetVec4("lightColor", lightColor);
+}
 
 
 /*

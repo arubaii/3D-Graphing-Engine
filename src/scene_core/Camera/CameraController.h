@@ -10,7 +10,10 @@ public:
 	virtual void OnActivate(Input&) {};
 	virtual void OnSelect(const glm::vec3&) {}
 
+
+
 	void SetCamera(PerspectiveCamera& camera) { m_Camera = &camera; }
+
 protected:
 	PerspectiveCamera* m_Camera = nullptr;
 };

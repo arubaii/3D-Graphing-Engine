@@ -9,15 +9,30 @@
 
 struct Vertex
 {
-	glm::vec3 Position;	// location = 0
-	glm::vec3 Color;	// location = 1
+	glm::vec3 Position;   // location = 0
+	glm::vec3 Normal;     // location = 1
+	glm::vec2 TexCoord;   // location = 2
+	glm::vec3 Color;      // location = 3 (optional / debug)
 };
+
 
 struct Mesh
 {
 	std::vector<Vertex>	  Vertices;
 	std::vector<uint32_t> Indices;
 };
+
+struct LightVertex
+{
+	glm::vec3 Position;
+};
+
+struct LightMesh
+{
+	std::vector<LightVertex> Vertices;
+	std::vector<uint32_t> Indices;
+};
+
 
 struct GPUMesh
 {
@@ -48,8 +63,10 @@ public:
 		);
 
 		VertexBufferLayout layout;
-		layout.Push<float>(3);
-		layout.Push<float>(3);
+		layout.Push<float>(3); // Position
+		layout.Push<float>(3); // Normal
+		layout.Push<float>(2); // TexCoord
+		layout.Push<float>(3); // Color
 
 		va.AddBuffer(vb, layout);
 		GLint enabled0 = 0, enabled1 = 0;

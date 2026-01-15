@@ -15,11 +15,12 @@ void OrbitCameraController::Update(float dt, Input& input)
 	glm::vec2 mouse    = input.GetMouseDelta();
 	double mouseScroll = input.GetMouseScrollY();
 
-	const float mouseSensitivity   = 0.1f;
-	const float keySensitivity	   = 0.02f;
-	const float keyZoomSensitivity = 0.01f;
-	const float minRadius          = 5.0f;
-	const float maxRadius		   = 30000.0f;
+	const float mouseSensitivity     = 0.1f;
+	const float mouseScrollSensivity = 1.0f;
+	const float keySensitivity	     = 135.0f; // 135 deg per second
+	const float keyZoomSensitivity   = 10.0f;
+	const float minRadius            = 5.0f;
+	const float maxRadius		     = 100000.0f;
 	// TODO: Set min and max radius proportional to the size the pivot object
 
 	if (input.IsMousePressed(Mouse::Left))
@@ -27,15 +28,17 @@ void OrbitCameraController::Update(float dt, Input& input)
 		m_Yaw    += mouse.x * mouseSensitivity;
 		m_Pitch  -= mouse.y * mouseSensitivity;
 	}
-	m_Radius -= mouseScroll * mouseSensitivity; // Mouse Zoom
+	m_Radius -= mouseScroll; // Mouse Zoom
 
-	if (input.IsKeyPressed(Key::A))	m_Yaw   += keySensitivity;
-	if (input.IsKeyPressed(Key::D)) m_Yaw   -= keySensitivity;
-	if (input.IsKeyPressed(Key::W)) m_Pitch += keySensitivity;
-	if (input.IsKeyPressed(Key::S)) m_Pitch -= keySensitivity;
-	if (input.IsKeyPressed(Key::Space))    m_Radius -= keyZoomSensitivity;
-	if (input.IsKeyPressed(Key::LeftCtrl)) m_Radius += keyZoomSensitivity;
-
+	if (input.IsKeyboardEnabled())
+	{
+		if (input.IsKeyPressed(Key::A) || input.IsKeyPressed(Key::Left))  m_Yaw   += keySensitivity * dt;
+		if (input.IsKeyPressed(Key::D) || input.IsKeyPressed(Key::Right)) m_Yaw   -= keySensitivity * dt;
+		if (input.IsKeyPressed(Key::W) || input.IsKeyPressed(Key::Up))    m_Pitch += keySensitivity * dt;
+		if (input.IsKeyPressed(Key::S) || input.IsKeyPressed(Key::Down))  m_Pitch -= keySensitivity * dt;
+		if (input.IsKeyPressed(Key::Space))    m_Radius -= keyZoomSensitivity * dt;
+		if (input.IsKeyPressed(Key::LeftCtrl)) m_Radius += keyZoomSensitivity * dt;
+	}
 
 	// Clamp radius
 	if (m_Radius < minRadius)

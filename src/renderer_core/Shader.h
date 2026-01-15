@@ -4,6 +4,8 @@
 #include "GLcommon.h"
 #include <glm/mat4x4.hpp>
 #include <glm/gtc/type_ptr.hpp>
+
+#include "scene_core/Camera/PerspectiveCamera.h"
 #include "utils/SmartPtrs.h"
 
 
@@ -81,11 +83,13 @@ public:
 		glUniformMatrix4fv(glGetUniformLocation(ID, name.c_str()), 1, GL_FALSE, glm::value_ptr(M));
 	};
 
-	void SetUniforms
+	void SetPhongUniforms
 	(
 		const glm::mat4& Model,
 		const glm::mat4& Projection,
-		const glm::mat4& lightModel
+		const glm::mat4& lightModel,
+		const glm::vec4& lightColor,
+		PerspectiveCamera camera
 	);
 
 	void UnsetUniforms();
