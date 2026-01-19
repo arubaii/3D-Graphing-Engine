@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.31)
-project(Engine_Core)
+project(3D_Graphing_Engine)
 set(CMAKE_CXX_STANDARD 23)
 
 find_package(glfw3 CONFIG REQUIRED)
@@ -58,13 +58,13 @@ file(GLOB_RECURSE SRC_FILES
 
 )
 
-add_executable(Engine_Core
+add_executable(3D_Graphing_Engine
         ${SRC_FILES}
         vendor/stb/stb_image.cpp
 
 )
 
-target_compile_definitions(Engine_Core PRIVATE
+target_compile_definitions(3D_Graphing_Engine PRIVATE
         PROJECT_DIR="${CMAKE_SOURCE_DIR}"
 )
 
@@ -76,9 +76,9 @@ target_compile_definitions(Engine_Core PRIVATE
 # ======================================================
 add_subdirectory(vendor/yaml-cpp)
 
-target_link_libraries(Engine_Core PRIVATE yaml-cpp)
+target_link_libraries(3D_Graphing_Engine PRIVATE yaml-cpp)
 
-target_include_directories(Engine_Core PRIVATE
+target_include_directories(3D_Graphing_Engine PRIVATE
         ${CMAKE_SOURCE_DIR}/src
         ${CMAKE_SOURCE_DIR}/include
         ${CMAKE_SOURCE_DIR}/vendor
@@ -93,7 +93,7 @@ target_include_directories(Engine_Core PRIVATE
 
 if(APPLE)
     if (EXISTS "/opt/homebrew/lib/libGLEW.dylib")
-        target_link_libraries(Engine_Core PRIVATE
+        target_link_libraries(3D_Graphing_Engine PRIVATE
                 glfw
                 "-framework OpenGL"
                 /opt/homebrew/lib/libGLEW.dylib
@@ -102,7 +102,7 @@ if(APPLE)
                 yaml-cpp
         )
     else()
-        target_link_libraries(Engine_Core PRIVATE
+        target_link_libraries(3D_Graphing_Engine PRIVATE
                 glfw
                 ${GLEW_LIBRARIES}
                 "-framework OpenGL"
@@ -112,7 +112,7 @@ if(APPLE)
         )
     endif()
 else()
-    target_link_libraries(Engine_Core PRIVATE
+    target_link_libraries(3D_Graphing_Engine PRIVATE
             glfw
             ${GLEW_LIBRARIES}
             OpenGL::GL
@@ -123,5 +123,5 @@ else()
 endif()
 
 if(APPLE)
-    target_link_libraries(Engine_Core PRIVATE m)
+    target_link_libraries(3D_Graphing_Engine PRIVATE m)
 endif()

@@ -4,10 +4,15 @@
 #include <glm/gtc/matrix_transform.hpp>
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/quaternion.hpp>
+
+#include "math_parser.h"
 #include "Camera/PerspectiveCamera.h"
 #include "renderer_core/IndexBuffer.h"
 #include "renderer_core/Mesh.h"
 #include "renderer_core/VertexArray.h"
+#include "surface/SurfaceMesh.h"
+#include "utils/UUID.h"
+#include "utils/SmartPtrs.h"
 
 
 struct TransformComponent
@@ -54,6 +59,14 @@ struct MeshComponent
 	Ref<Mesh> MeshData;
 };
 
+struct SurfaceComponent
+{
+	Ref<MathParser::CompiledExpression> Expression;
+	Scope<SurfaceMesh> Mesh;
+	bool Dirty = false;
+
+	float ImplicitRadius = -1.0f;
+};
 
 struct CameraComponent
 {

@@ -20,6 +20,9 @@ struct Mesh
 {
 	std::vector<Vertex>	  Vertices;
 	std::vector<uint32_t> Indices;
+
+	uint64_t Revision = 0;
+	void Touch() { ++Revision; }
 };
 
 struct LightVertex
@@ -40,52 +43,19 @@ struct GPUMesh
 	VertexBuffer VB;
 	IndexBuffer IB;
 
+	uint64_t LastRevision = 0;
+
 	GPUMesh(VertexArray&& va, VertexBuffer&& vb, IndexBuffer&& ib)
 	: VA(std::move(va)), VB(std::move(vb)), IB(std::move(ib)) {}
 };
 
 class MeshRendererCache
 {
+private:
+	static std::unordered_map<const Mesh*, GPUMesh> s_Cache;
 public:
-	static GPUMesh& GetOrCreate(Mesh& mesh)
-	{
-		static std::unordered_map<const Mesh*, GPUMesh> cache;
 
-		if (auto found = cache.find(&mesh); found != cache.end())
-			return found->second;
-
-		VertexArray va;
-		va.Bind();
-
-		VertexBuffer vb(
-			static_cast<uint32_t>(mesh.Vertices.size() * sizeof(Vertex)),
-			mesh.Vertices.data()
-		);
-
-		VertexBufferLayout layout;
-		layout.Push<float>(3); // Position
-		layout.Push<float>(3); // Normal
-		layout.Push<float>(2); // TexCoord
-		layout.Push<float>(3); // Color
-
-		va.AddBuffer(vb, layout);
-		GLint enabled0 = 0, enabled1 = 0;
-		glGetVertexAttribiv(0, GL_VERTEX_ATTRIB_ARRAY_ENABLED, &enabled0);
-		glGetVertexAttribiv(1, GL_VERTEX_ATTRIB_ARRAY_ENABLED, &enabled1);
-		assert(enabled0 == GL_TRUE && enabled1 == GL_TRUE);
-		// Bind EBO while VAO is bound
-		IndexBuffer ib(
-			static_cast<uint32_t>(mesh.Indices.size()),
-			mesh.Indices.data()
-		);
-		ib.Bind();
-
-		auto [it, inserted] = cache.emplace(
-			&mesh,
-			GPUMesh{ std::move(va), std::move(vb), std::move(ib) }
-		);
-
-		return it->second;
-	}
+	static void Invalidate(const Mesh& mesh);
+	static GPUMesh& GetOrCreate(Mesh& mesh);
 
 };

@@ -23,6 +23,7 @@ Application::Application(const ApplicationProperties& props)
 	m_ImGuiLayer = CreateScope<ImGuiLayer>();
 
 	m_ImGuiLayer->OnAttach(m_Window->GetGLFWwindow());
+	m_DebugData.expression = CreateRef<MathParser::CompiledExpression>();
 }
 
 Application::~Application() {}
@@ -35,7 +36,7 @@ void Application::Run()
 		m_Window->PollEvents();
 
 
-		m_Input.Update(m_DeltaTime);
+		m_Input.Update();
 		m_Scene->Update(m_DeltaTime, m_Input);
 		glClearColor(m_DebugData.greyScale, m_DebugData.greyScale, m_DebugData.greyScale, 1.0f);
 		m_Renderer->Clear();
@@ -50,7 +51,20 @@ void Application::Run()
 		m_DebugData.pitch      = m_Scene->GetMainCameraPitch();
 		m_DebugData.yaw        = m_Scene->GetMainCameraYaw();
 
+		m_Scene->m_DOMAIN_RADIUS = m_DebugData.radius;
+		m_Scene->m_SurfaceType   = m_DebugData.surfaceType;
+		m_Scene->m_ShowGrid	     = m_DebugData.showGrid;
+
 		DebugPanel::Render(m_DebugData);
+
+
+		if (m_DebugData.expressionDirty)
+		{
+			m_Scene->SetSurfaceExpression(m_DebugData.expression);
+			m_DebugData.expressionDirty = false;
+		}
+
+
 		m_ImGuiLayer->EndFrame();
 
 		m_Input.EndFrame();

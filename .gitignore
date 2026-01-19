@@ -1,2 +1,6 @@
-cmake-build-*/
+.DS_Store
 .idea/
+cmake-build-*/
+out/
+build/
+*.iml

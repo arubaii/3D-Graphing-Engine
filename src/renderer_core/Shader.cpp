@@ -79,21 +79,21 @@ Shader::Shader(const std::string &vertexPath, const std::string &fragmentPath)
 
 Shader::~Shader() {};
 
-void Shader::SetPhongUniforms
-(
+void Shader::SetPhongUniforms(
 	const glm::mat4& Model,
 	const glm::mat4& Projection,
-	const glm::mat4& lightModel,
+	const glm::vec3& lightPos,
 	const glm::vec4& lightColor,
-	PerspectiveCamera camera
+	const PerspectiveCamera& camera
 )
 {
 	glm::mat4 View = camera.GetViewMatrix();
 	glm::mat4 MVP = Projection * View * Model;
+
 	SetMat4("u_Model", Model);
 	SetMat4("u_MVP", MVP);
 	SetVec3("cameraPos", camera.GetPosition());
-	SetVec3("lightPos", glm::vec3(lightModel[3]));
+	SetVec3("lightPos", lightPos);
 	SetVec4("lightColor", lightColor);
 }
 

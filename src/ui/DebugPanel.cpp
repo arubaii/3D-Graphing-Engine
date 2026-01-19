@@ -1,8 +1,81 @@
 #include "DebugPanel.h"
-
 #include "math_parser.h"
+#include "surface/SurfaceTypes.h"
 #include "utils/Log.h"
-#include "math_parser.h"
+
+
+std::vector<std::string> GetParamsFromFunctionBuffer(const char* buff)
+{
+	const char* open = strchr(buff, '(');
+	const char* close = strchr(buff, ')');
+
+	if (!open || !close || close <= open)
+		throw std::runtime_error("Malformed function header");
+
+	open++;
+
+	std::vector<std::string> params;
+	const char* start = open;
+
+	while (start < close)
+	{
+		// Find next comma or ')'
+		const char* end = strchr(start, ',');
+		if (!end || end > close)
+			end = close;
+
+		// Extract substring
+		std::string token(start, end - start);
+
+		// Trim whitespace
+		auto trim = [&](std::string& s) {
+			size_t a = s.find_first_not_of(" \t\n\r");
+			size_t b = s.find_last_not_of(" \t\n\r");
+			s = (a == std::string::npos) ? "" : s.substr(a, b - a + 1);
+		};
+
+		trim(token);
+		if (!token.empty())
+			params.push_back(token);
+
+		// Move to next start
+		start = end + 1;
+	}
+
+	return params;
+}
+
+static SurfaceType DeduceSurfaceType(const std::vector<std::string>& params)
+{
+	if (params.size() == 1)
+	{
+		if (params[0] != "x")
+			throw std::runtime_error("For 1-parameter functions use f(x)");
+		return SurfaceType::ExplicitX;
+	}
+
+	if (params.size() == 2)
+	{
+		bool hasX = false, hasY = false;
+		for (auto& p : params) { hasX |= (p == "x"); hasY |= (p == "y"); }
+		if (!hasX || !hasY)
+			throw std::runtime_error("For 2-parameter surfaces use f(x,y)");
+		return SurfaceType::ExplicitXY;
+	}
+
+	if (params.size() == 3)
+	{
+		bool hasX = false, hasY = false, hasZ = false;
+		for (auto& p : params) { hasX |= (p == "x"); hasY |= (p == "y"); hasZ |= (p == "z"); }
+		if (!hasX || !hasY || !hasZ)
+			throw std::runtime_error("For implicit surfaces use f(x,y,z)");
+		return SurfaceType::Implicit;
+	}
+
+	throw std::runtime_error("Unsupported parameter count (use 1, 2, or 3 parameters)");
+}
+
+
 
 void DebugPanel::Render(DebugData& data)
 {
@@ -18,10 +91,149 @@ void DebugPanel::Render(DebugData& data)
 	ImGui::PushItemWidth(70);
 	ImGui::SliderFloat("Background Greyscale", &data.greyScale, 0.0f, 1.0f, "%.2f");
 	ImGui::PopItemWidth();
+	if (ImGui::Button("Show Grid"))
+		data.showGrid = !data.showGrid;
+
+
+
+	// ====================================== PARSING ========================================
+
+
 	static char functionBuffer[12] = "";
-	static char expressionBuffer[256] = "";
-	static char varBuffer[16] = "";
-	static char valueBuffer[64];
+	static char expressionBuffer[512] = "";
+	static char radiusBuffer[12] = "";
+
+
+
+
+	struct PresetEq
+	{
+		const char* label;
+		const char* func;
+		const char* expr;
+	};
+
+static const PresetEq kPresets[] = {
+	{ "##", "", "" },
+	// -------------------- EXPLICIT --------------------
+	{ "cos(x)+sin(y)",              "f(x,y)",   "cos(x) + sin(y)" },
+	{ "Paraboloid",                 "f(x,y)",   "x^2 + y^2" },
+	{ "Saddle",                     "f(x,y)",   "x^2 - y^2" },
+	{ "Ripple",                     "f(x,y)",   "sin(x) + cos(y)" },
+	{ "Radial ripple",              "f(x,y)",   "sin(sqrt(x*x + y*y))" },
+
+	// -------------------- IMPLICIT  --------------------
+	{ "Sphere r=3",                 "f(x,y,z)", "x^2 + y^2 + z^2 - 9" },
+	{ "Sphere r=6",                 "f(x,y,z)", "x^2 + y^2 + z^2 - 36" },
+
+	{ "Ellipsoid (3,2,1)",          "f(x,y,z)", "x^2/9 + y^2/4 + z^2 - 1" },
+	{ "Cylinder (y-axis) r=3",      "f(x,y,z)", "x^2 + z^2 - 9" },
+	{ "Capsule-ish (two spheres)",  "f(x,y,z)", "(x*x + y*y + (z-3)*(z-3) - 4) * (x*x + y*y + (z+3)*(z+3) - 4)" },
+
+	{ "Torus (R=8,r=2)",            "f(x,y,z)", "(sqrt(x*x + z*z) - 8)^2 + y*y - 4" },
+	{ "Thin torus (R=8,r=1)",       "f(x,y,z)", "(sqrt(x*x + z*z) - 8)^2 + y*y - 1" },
+	{ "Fat torus (R=6,r=3)",        "f(x,y,z)", "(sqrt(x*x + z*z) - 6)^2 + y*y - 9" },
+
+	{"Genus 3", "f(x,y,z)", "(x^2-1)^2+(y^2-1)^2+(z^2-1)^2+4(x^2y^2+x^2z^2+y^2z^2)+8x*y*z-2(x^2+y^2+z^2)"},
+
+	{ "Gyroid",                     "f(x,y,z)", "sin(x)*cos(y) + sin(y)*cos(z) + sin(z)*cos(x)" },
+	{ "Schwarz P",                  "f(x,y,z)", "cos(x) + cos(y) + cos(z)" },
+	{ "Schwarz D",                  "f(x,y,z)", "sin(x)*sin(y)*sin(z) + sin(x)*cos(y)*cos(z) + cos(x)*sin(y)*cos(z) + cos(x)*cos(y)*sin(z)" },
+
+	{ "Cone (double)",              "f(x,y,z)", "x^2 + z^2 - y^2" },
+	{ "Hyperboloid (1-sheet)",      "f(x,y,z)", "x^2 + z^2 - y^2 - 1" },
+	{ "Hyperboloid (2-sheet)",      "f(x,y,z)", "y^2 - x^2 - z^2 - 1" },
+
+
+	{ "Tangent cylinder",           "f(x,y,z)", "x^2 + y^2 - 1" },
+	{ "Steiner surface",            "f(x,y,z)", "x*x*y*y + y*y*z*z + z*z*x*x - x*y*z" },
+	{ "Heart",                      "f(x,y,z)", "x^2+4y^2+(1.15z-0.6(2(x^2+.05y^2+.001)^0.7+y^2)^0.3+0.3)^2-1" },
+
+
+	{ "Klein bottle (implicit-ish)", "f(x,y,z)", "(x*x + y*y + z*z + 2*y - 1) * (x*x + y*y + z*z - 2*y - 1) - 8*z*z" },
+	{ "Quartic blob",               "f(x,y,z)", "x^4 + y^4 + z^4 - 25" },
+
+	{ "Metaballs (2 blobs)",        "f(x,y,z)", "1/(x*x+y*y+z*z+1e-3) + 1/((x-4)*(x-4)+y*y+z*z+1e-3) - 0.35" },
+};
+
+	static int presetIdx = 0;
+
+	ImGui::PushItemWidth(260);
+	if (ImGui::BeginCombo("Load Preset Function", kPresets[presetIdx].label))
+	{
+		for (int i = 0; i < (int)(sizeof(kPresets) / sizeof(kPresets[0])); ++i)
+		{
+			const bool selected = (presetIdx == i);
+			if (ImGui::Selectable(kPresets[i].label, selected))
+				presetIdx = i;
+			if (selected) ImGui::SetItemDefaultFocus();
+		}
+		ImGui::EndCombo();
+	}
+	ImGui::PopItemWidth();
+
+
+
+	static int  lastPresetIdx   = -1;
+	static bool requestAutoSet  = true; // auto-apply once on first frame
+
+	auto ApplyEquationFromBuffers = [&]()
+	{
+		try
+		{
+			std::string s(expressionBuffer);
+			data.expression->set_expression(s);
+
+			std::set<std::string> vars = data.expression->get_vars();
+			std::vector<std::string> params = GetParamsFromFunctionBuffer(functionBuffer);
+
+			// Build a fast lookup of allowed params
+			std::unordered_set<std::string> allowed(params.begin(), params.end());
+
+			// Allow expressions to use a subsset of the declared parameters
+			for (const auto& v : vars)
+			{
+				if (!allowed.contains(v))
+					throw std::runtime_error("Function parameters do not match expression variables");
+			}
+
+
+			if (params.size() == 3 && vars.empty())
+				throw std::runtime_error("Implicit expression must reference x, y, or z");
+
+			data.surfaceType = DeduceSurfaceType(params);
+			data.expressionDirty = true;
+		}
+		catch (const std::exception& e)
+		{
+			LOG_ERROR(std::string("[Math Parser] Auto Set failed: ") + e.what());
+		}
+	};
+
+	// Auto load
+	if (requestAutoSet)
+	{
+		presetIdx = 0; // start at "Empty"
+
+		functionBuffer[0]   = '\0';
+		expressionBuffer[0] = '\0';
+
+
+		requestAutoSet = false;
+		lastPresetIdx  = presetIdx;
+	}
+
+
+
+	if (presetIdx != lastPresetIdx)
+	{
+		std::snprintf(functionBuffer,   IM_ARRAYSIZE(functionBuffer),   "%s", kPresets[presetIdx].func);
+		std::snprintf(expressionBuffer, IM_ARRAYSIZE(expressionBuffer), "%s", kPresets[presetIdx].expr);
+
+		ApplyEquationFromBuffers();
+		lastPresetIdx = presetIdx;
+	}
+
 
 	using namespace MathParser;
 	ImGui::PushItemWidth(70);
@@ -31,64 +243,77 @@ void DebugPanel::Render(DebugData& data)
 	ImGui::Text("=");
 	ImGui::SameLine();
 	ImGui::PushItemWidth(200);
-	if (ImGui::InputText(
-		"Expression",
+	ImGui::InputTextWithHint(
+		"##Expression",
+		"expression",
 		expressionBuffer,
 		IM_ARRAYSIZE(expressionBuffer),
-		ImGuiInputTextFlags_EnterReturnsTrue))
-	{
-		LOG("Expression: ", expressionBuffer);
-	}
+		ImGuiInputTextFlags_EnterReturnsTrue);
+
 	ImGui::PopItemWidth();
 
-	ImGui::PushItemWidth(80);
-	ImGui::InputTextWithHint("##Variable","x,...", varBuffer, IM_ARRAYSIZE(varBuffer));
-	ImGui::PopItemWidth();
 
 	ImGui::SameLine();
 
-	ImGui::PushItemWidth(120);
-	ImGui::InputTextWithHint("##Values","x_val,...", valueBuffer, IM_ARRAYSIZE(valueBuffer));
-	ImGui::PopItemWidth();
 
-	ImGui::SameLine();
 
-	if (ImGui::Button("Set Variable"))
+	if (ImGui::Button("Set Equation"))
 	{
-		std::string s(expressionBuffer);
-		auto vars   = ParseVars(varBuffer);
-		auto values = ParseValues(valueBuffer);
-
-
-		if (vars.size() != values.size())
+		try
 		{
-			LOG_ERROR("[Math Parser] Variable/value count mismatch");
+			std::string s(expressionBuffer);
+			data.expression->set_expression(s);
+
+			std::set<std::string> vars = data.expression->get_vars();
+			std::vector<std::string> params = GetParamsFromFunctionBuffer(functionBuffer);
+
+			if (vars.size() != params.size())
+				throw std::runtime_error("Function parameters do not match expression variables");
+
+			for (const auto& p : params)
+			{
+				if (!vars.contains(p))
+					throw std::runtime_error("Function parameters do not match expression variables");
+			}
+
+			data.surfaceType = DeduceSurfaceType(params);
+			data.expressionDirty = true;
 		}
-
-		else {
-			Vars bindings;
-			for (size_t i = 0; i < vars.size(); ++i)
-				bindings.list.emplace_back(vars[i], values[i]);
-
-			TRY_MATH({
-					CompiledExpression expr(s, bindings);
-					double result = expr.value();
-					LOG("Result: ", result);
-					});
+		catch (const std::exception& e)
+		{
+			LOG_ERROR(std::string("[Math Parser] Set Equation failed: ") + e.what());
 		}
 	}
 
 
-
-
-
-
-
-
-
+	// const bool implicit = (data.surfaceType == SurfaceType::Implicit);
+	//
+	// ImGui::PushItemWidth(65);
+	//
+	// ImGui::AlignTextToFramePadding();
+	// ImGui::Text("x, y, z in [");
+	// ImGui::SameLine();
+	//
+	// ImGui::InputTextWithHint("##DomainGrid", "e.g. 5.0", radiusBuffer, sizeof(radiusBuffer));
+	// ImGui::SameLine();
+	//
+	// ImGui::AlignTextToFramePadding();
+	// ImGui::Text("]");
+	// ImGui::SameLine();
+	//
+	// if (ImGui::Button("Set Domain"))
+	// {
+	// 	float r = std::atof(radiusBuffer);
+	// 	if (std::isfinite(r) && r > 0.0f)
+	// 		data.radius = r;
+	// 	else
+	// 		LOG_ERROR("[Math Parser] Invalid domain radius");
+	// }
 
 
 
 
     ImGui::End();
 }
+
+

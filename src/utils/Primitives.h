@@ -139,39 +139,27 @@ namespace PRIMITIVES
         3, 4, 5
     };
 
-    // Infinite Grid
-    // inline std::vector<float> GenerateGridVertices(int gridSize = 1, float spacing = 1.0f)
-    // {
-    //     std::vector<float> gridVertices;
-    //     gridVertices.reserve((gridSize * 2 + 1) * 12); // estimate
-    //
-    //     for (int i = -gridSize; i <= gridSize; ++i)
-    //     {
-    //         // Line parallel to X axis
-    //         gridVertices.push_back(-gridSize * spacing);
-    //         gridVertices.push_back(0.0f);
-    //         gridVertices.push_back(i * spacing);
-    //
-    //         gridVertices.push_back(gridSize * spacing);
-    //         gridVertices.push_back(0.0f);
-    //         gridVertices.push_back(i * spacing);
-    //
-    //         // Line parallel to Z axis
-    //         gridVertices.push_back(i * spacing);
-    //         gridVertices.push_back(0.0f);
-    //         gridVertices.push_back(-gridSize * spacing);
-    //
-    //         gridVertices.push_back(i * spacing);
-    //         gridVertices.push_back(0.0f);
-    //         gridVertices.push_back(gridSize * spacing);
-    //     }
-    //
-    //     return gridVertices;
-    // }
 
-    // inline const unsigned int GridIndices[] = {
-    //     0, 1, 2, 2, 3, 0
-    // };
+    inline const std::vector<Vertex> LightVerts = {
+        // position                 normal           tex     color
+        {{-0.5f,-0.5f,-0.5f}, {0,0,0}, {0,0}, {1,1,1}},
+        {{ 0.5f,-0.5f,-0.5f}, {0,0,0}, {0,0}, {1,1,1}},
+        {{ 0.5f, 0.5f,-0.5f}, {0,0,0}, {0,0}, {1,1,1}},
+        {{-0.5f, 0.5f,-0.5f}, {0,0,0}, {0,0}, {1,1,1}},
+        {{-0.5f,-0.5f, 0.5f}, {0,0,0}, {0,0}, {1,1,1}},
+        {{ 0.5f,-0.5f, 0.5f}, {0,0,0}, {0,0}, {1,1,1}},
+        {{ 0.5f, 0.5f, 0.5f}, {0,0,0}, {0,0}, {1,1,1}},
+        {{-0.5f, 0.5f, 0.5f}, {0,0,0}, {0,0}, {1,1,1}},
+    };
+
+    inline const std::vector<uint32_t> LightIdx = {
+        0,1,2, 2,3,0,
+        4,5,6, 6,7,4,
+        0,4,7, 7,3,0,
+        1,5,6, 6,2,1,
+        3,2,6, 6,7,3,
+        0,1,5, 5,4,0
+    };
 
 }
 

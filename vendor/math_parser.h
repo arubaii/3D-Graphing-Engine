@@ -12,6 +12,7 @@
 #include <optional>
 #include <algorithm>
 #include <iostream>
+#include <set>
 #include <utility>
 
 
@@ -865,6 +866,8 @@ namespace MathParser
 
 	public:
 
+		CompiledExpression() = default;
+
 		explicit CompiledExpression
 		(
 			const std::string& source,
@@ -906,6 +909,14 @@ namespace MathParser
 		)
 		: CompiledExpression(source, vars, defs)
 			{}
+
+		CompiledExpression(const CompiledExpression&) = delete;
+		CompiledExpression& operator=(const CompiledExpression&) = delete;
+
+		CompiledExpression(CompiledExpression&&) = default;
+		CompiledExpression& operator=(CompiledExpression&&) = default;
+
+
 
 		/**
 		 * @brief Define or redefine a user function.
@@ -980,7 +991,7 @@ namespace MathParser
 
 				m_Parsed = true;
 			}
-
+			detail::ExprPtr &expr = std::get<detail::ExprPtr>(m_Result);
 			return std::get<detail::ExprPtr>(m_Result)->Eval(m_Vars);
 		}
 
@@ -993,7 +1004,7 @@ namespace MathParser
 		void set_vars(const std::string& name, double value) { m_Vars[name] = value; }
 
 		/**
-		 * @brief Set or update the value of variable(s) (std::initializer_list overload.
+		 * @brief Set or update the value of variable(s) (std::initializer_list overload).
 		 *
 		 * @note Does not trigger reparsing; the new value is used on the next
 		 *       evaluation.
@@ -1005,6 +1016,51 @@ namespace MathParser
 		}
 
 
+		/**
+		 * @brief Returns the length of the string expression.
+		 */
+		uint32_t get_length() const { return m_Source.length(); }
+
+		/**
+		 * @brief Set the string expression.
+		 */
+		void set_expression(const std::string& source)
+		{
+			m_Source = RemoveNuls(source);
+			m_Parsed = false;
+			m_Result = {}; // reset the variant
+		}
+
+		const std::string& get_expression_string() const { return m_Source; }
+
+		/**
+		 * @brief Returns a set of strings of the variables, ordered alphabetically.
+		 */
+		std::set<std::string> get_vars()
+		{
+			if (!m_Parsed)
+			{
+				detail::Parser p(m_Source, m_FunctionEngine);
+				m_Result = p.Parse();
+				if (!std::holds_alternative<detail::ExprPtr>(m_Result))
+					throw std::runtime_error("Expression is not scalar");
+				m_Parsed = true;
+			}
+
+
+			std::unordered_set<std::string> temp;
+			std::get<detail::ExprPtr>(m_Result)->CollectVars(temp);
+
+			// While clearly not optimal, the cost is irrelevant in this use case
+			std::set<std::string> ordered_vars(temp.begin(), temp.end());
+			return ordered_vars;
+		}
+
+		// Reference into the var table
+		double* GetVarPtr(const std::string& name)
+		{
+			return &m_Vars[name];
+		}
 	private:
 		// Removes "\0" at beginning and end; issue in testing; fix could be more robust, fine for now
 		static std::string RemoveNuls(std::string s)

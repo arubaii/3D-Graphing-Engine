@@ -15,7 +15,7 @@ void OrbitCameraController::Update(float dt, Input& input)
 	glm::vec2 mouse    = input.GetMouseDelta();
 	double mouseScroll = input.GetMouseScrollY();
 
-	const float mouseSensitivity     = 0.1f;
+	const float mouseSensitivity     = 0.4f;
 	const float mouseScrollSensivity = 1.0f;
 	const float keySensitivity	     = 135.0f; // 135 deg per second
 	const float keyZoomSensitivity   = 10.0f;
@@ -23,12 +23,12 @@ void OrbitCameraController::Update(float dt, Input& input)
 	const float maxRadius		     = 100000.0f;
 	// TODO: Set min and max radius proportional to the size the pivot object
 
-	if (input.IsMousePressed(Mouse::Left))
+	if (input.IsMousePressed(Mouse::Left) && !input.IsInUI())
 	{
 		m_Yaw    += mouse.x * mouseSensitivity;
 		m_Pitch  -= mouse.y * mouseSensitivity;
 	}
-	m_Radius -= mouseScroll; // Mouse Zoom
+	// m_Radius -= mouseScroll; // Mouse Zoom
 
 	if (input.IsKeyboardEnabled())
 	{
@@ -36,8 +36,7 @@ void OrbitCameraController::Update(float dt, Input& input)
 		if (input.IsKeyPressed(Key::D) || input.IsKeyPressed(Key::Right)) m_Yaw   -= keySensitivity * dt;
 		if (input.IsKeyPressed(Key::W) || input.IsKeyPressed(Key::Up))    m_Pitch += keySensitivity * dt;
 		if (input.IsKeyPressed(Key::S) || input.IsKeyPressed(Key::Down))  m_Pitch -= keySensitivity * dt;
-		if (input.IsKeyPressed(Key::Space))    m_Radius -= keyZoomSensitivity * dt;
-		if (input.IsKeyPressed(Key::LeftCtrl)) m_Radius += keyZoomSensitivity * dt;
+
 	}
 
 	// Clamp radius

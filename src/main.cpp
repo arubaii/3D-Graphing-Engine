@@ -1,8 +1,28 @@
 #include "core/Application.h"
 
 /*
-	Change project name to "Engine-Core", and use as template for future projects with application
-	specific code
+	TODO: REFACTOR PROCEDURE
+
+	class structure:
+
+	class Foo
+	{
+	public:
+		public fields...
+
+	private:
+		private fields...
+
+	public:
+		public member functions...
+
+	private:
+
+		private member functions..
+
+
+
+	}
 */
 
 int main()
@@ -15,6 +35,8 @@ int main()
 	Application app(appProps);
 	app.Run();
 }
+
+
 /*
 	GIT WORKFLOW ====================================
 

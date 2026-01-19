@@ -8,7 +8,6 @@ PerspectiveCamera::PerspectiveCamera(float fov, float aspect, float nearPlane, f
 	RecalculateView();
 }
 
-
 void PerspectiveCamera::RecalculateView()
 {
 	glm::vec3 forward;

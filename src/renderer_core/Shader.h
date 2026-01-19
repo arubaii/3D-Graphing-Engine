@@ -87,9 +87,9 @@ public:
 	(
 		const glm::mat4& Model,
 		const glm::mat4& Projection,
-		const glm::mat4& lightModel,
+		const glm::vec3& lightPos,
 		const glm::vec4& lightColor,
-		PerspectiveCamera camera
+		const PerspectiveCamera& camera
 	);
 
 	void UnsetUniforms();

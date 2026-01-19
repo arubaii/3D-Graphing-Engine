@@ -26,7 +26,7 @@ public:
 
 	int	GetWidth()  const { return m_WindowProperties.Width; }
 	int	GetHeight()	const { return m_WindowProperties.Height; }
-	glm::vec2 GetViewPort() const
+	glm::vec2 GetViewport() const
 	{
 		return glm::vec2(m_WindowProperties.Width, m_WindowProperties.Height);
 	}

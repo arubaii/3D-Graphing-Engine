@@ -1,7 +1,7 @@
 #pragma once
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-#include "math/Ray.h"
+
 #include "io/Input.h"
 
 /*
@@ -14,7 +14,8 @@
 			- Handles user I/O
 
 */
-class Camera
+class
+Camera
 {
 public:
 	virtual ~Camera() = default;
@@ -39,25 +40,6 @@ public:
 	float GetViewportHeight() const { return m_ViewportHeight; }
 
 
-	Ray GetRayFromScreen(const glm::vec2& cursorPos,
-						 const glm::vec2& viewportSize) const
-	{
-		// 1. Screen -> NDC
-		float x = (2.0f * cursorPos.x) / viewportSize.x - 1.0f;
-		float y = 1.0f - (2.0f * cursorPos.y) / viewportSize.y;
-		glm::vec2 ndc{x, y};
-
-		// 2. Clip space
-		glm::vec4 rayClip{ndc.x, ndc.y, -1.0f, 1.0f};
-
-		// 3. View Space
-		glm::vec4 rayView = glm::inverse(GetProjectionMatrix()) * rayClip;
-		rayView = {rayView.x, rayView.y, -1.0f, 0.0f};
-
-		glm::vec3 rayDir = glm::normalize(glm::vec3(glm::inverse(GetViewMatrix()) * rayView));
-
-		return { GetPosition(), rayDir};
-	}
 
 protected:
 	glm::mat4 m_View{1.0f};
