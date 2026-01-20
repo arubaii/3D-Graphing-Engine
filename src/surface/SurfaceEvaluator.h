@@ -21,6 +21,9 @@ private:
 
 public:
 	SurfaceType SurfType;
+	mutable bool  m_DomainCached = false;
+	mutable float m_CachedRadius = 0.0f;
+	float m_MAX_DOMAIN_RANGE = 50.0f;
 
 public:
 
@@ -31,9 +34,11 @@ public:
 	);
 
 	SurfaceSample Eval(float x, float y) const;
-	SurfaceSample Eval3(float x, float y, float z) const;
+	float Eval3(float x, float y, float z) const;
 
 	std::function<float(float,float,float)> GetCallableImplicit() const;
+
+	float EstimateImplicitDomainRadius() const;
 
 
 	bool IsEmpty() const { return m_IsEmpty; }

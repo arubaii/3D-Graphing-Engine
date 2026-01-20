@@ -38,12 +38,17 @@ static inline uint32_t GetOrCreateVertex(SurfaceMesh& mesh, const glm::vec3& pos
 
 	Vertex v{};
 	v.Position = pos;
-	v.Normal   = glm::vec3(0.0f); // accumulate face normals; normalize later
+	v.Normal   = glm::vec3(0.0f);
 
 	const uint32_t idx = (uint32_t)mesh.m_CPU.Vertices.size();
 	mesh.m_CPU.Vertices.push_back(v);
 	mesh.m_VertexCache.emplace(key, idx);
 	return idx;
+}
+
+static inline void AccumNormal(SurfaceMesh& mesh, uint32_t idx, const glm::vec3& n)
+{
+	mesh.m_CPU.Vertices[idx].Normal += n;
 }
 
 static inline void FinalizeNormals(SurfaceMesh& mesh)
@@ -52,7 +57,7 @@ static inline void FinalizeNormals(SurfaceMesh& mesh)
 	{
 		const float len2 = glm::dot(v.Normal, v.Normal);
 		if (len2 > 1e-20f)
-			v.Normal = glm::normalize(v.Normal);
+			v.Normal *= (1.0f / std::sqrt(len2));
 		else
 			v.Normal = glm::vec3(0.0f, 1.0f, 0.0f);
 	}
@@ -127,65 +132,53 @@ static void MarchingCubes(
     h = std::clamp(h, 1e-4f, 1e-1f);
 
 
-    for (int i = 0; TRI_TABLE[cubeIndex][i] != -1; i += 3)
-    {
-        uint32_t ia = TRI_TABLE[cubeIndex][i + 0];
-        uint32_t ib = TRI_TABLE[cubeIndex][i + 1];
-        uint32_t ic = TRI_TABLE[cubeIndex][i + 2];
+	for (int i = 0; TRI_TABLE[cubeIndex][i] != -1; i += 3)
+	{
+		uint32_t ia = TRI_TABLE[cubeIndex][i + 0];
+		uint32_t ib = TRI_TABLE[cubeIndex][i + 1];
+		uint32_t ic = TRI_TABLE[cubeIndex][i + 2];
 
-        glm::vec3 p0 = edgeVerts[ia];
-        glm::vec3 p1 = edgeVerts[ib];
-        glm::vec3 p2 = edgeVerts[ic];
+		glm::vec3 p0 = edgeVerts[ia];
+		glm::vec3 p1 = edgeVerts[ib];
+		glm::vec3 p2 = edgeVerts[ic];
 
-        // Per-vertex normals from gradient of signed field
-        glm::vec3 n0 = GradientCentral(F, p0, h);
-        glm::vec3 n1 = GradientCentral(F, p1, h);
-        glm::vec3 n2 = GradientCentral(F, p2, h);
+		glm::vec3 faceN = glm::cross(p1 - p0, p2 - p0);
+		const float faceLen2 = glm::dot(faceN, faceN);
+		if (faceLen2 > 1e-20f) faceN *= (1.0f / std::sqrt(faceLen2));
+		else faceN = glm::vec3(0,1,0);
 
-        // Normalize safely (fallback to face normal)
-        glm::vec3 faceN = glm::cross(p1 - p0, p2 - p0);
-        const float faceLen2 = glm::dot(faceN, faceN);
-        if (faceLen2 > 1e-20f) faceN = faceN * (1.0f / std::sqrt(faceLen2));
-        else faceN = glm::vec3(0,1,0);
+		auto safeNorm = [&](glm::vec3 v) -> glm::vec3
+		{
+			float l2 = glm::dot(v, v);
+			if (l2 < 1e-20f) return faceN;
+			return v * (1.0f / std::sqrt(l2));
+		};
 
-        auto safeNorm = [&](glm::vec3 v) -> glm::vec3
-        {
-            float l2 = glm::dot(v, v);
-            if (l2 < 1e-20f) return faceN;
-            return v * (1.0f / std::sqrt(l2));
-        };
+		glm::vec3 n0 = safeNorm(GradientCentral(F, p0, h));
+		glm::vec3 n1 = safeNorm(GradientCentral(F, p1, h));
+		glm::vec3 n2 = safeNorm(GradientCentral(F, p2, h));
 
-        n0 = safeNorm(n0);
-        n1 = safeNorm(n1);
-        n2 = safeNorm(n2);
+		const glm::vec3 c = (p0 + p1 + p2) * (1.0f / 3.0f);
+		glm::vec3 gc = safeNorm(GradientCentral(F, c, h));
 
-        // Ensure triangle winding matches "outward" direction.
-        // Outward for signedF (v-iso) is along +grad(F) from inside->outside.
-        // If face normal points opposite average grad, flip winding.
-        const glm::vec3 c = (p0 + p1 + p2) * (1.0f / 3.0f);
-        glm::vec3 gc = safeNorm(GradientCentral(F, c, h));
+		if (glm::dot(faceN, gc) < 0.0f)
+		{
+			std::swap(p1, p2);
+			std::swap(n1, n2);
+		}
 
-        if (glm::dot(faceN, gc) < 0.0f)
-        {
-            std::swap(p1, p2);
-            std::swap(n1, n2);
-            faceN = -faceN;
-        }
+		const uint32_t v0 = GetOrCreateVertex(mesh, p0);
+		const uint32_t v1 = GetOrCreateVertex(mesh, p1);
+		const uint32_t v2 = GetOrCreateVertex(mesh, p2);
 
-        Vertex v0{}, v1{}, v2{};
-        v0.Position = p0; v0.Normal = n0;
-        v1.Position = p1; v1.Normal = n1;
-        v2.Position = p2; v2.Normal = n2;
+		AccumNormal(mesh, v0, n0);
+		AccumNormal(mesh, v1, n1);
+		AccumNormal(mesh, v2, n2);
 
-        const uint32_t base = (uint32_t)mesh.m_CPU.Vertices.size();
-        mesh.m_CPU.Vertices.push_back(v0);
-        mesh.m_CPU.Vertices.push_back(v1);
-        mesh.m_CPU.Vertices.push_back(v2);
-
-        mesh.m_CPU.Indices.push_back(base + 0);
-        mesh.m_CPU.Indices.push_back(base + 1);
-        mesh.m_CPU.Indices.push_back(base + 2);
-    }
+		mesh.m_CPU.Indices.push_back(v0);
+		mesh.m_CPU.Indices.push_back(v1);
+		mesh.m_CPU.Indices.push_back(v2);
+	}
 }
 
 
@@ -368,9 +361,9 @@ void SurfaceMesh::BuildImplicit(const SurfaceSampling3D& s3, const SurfaceEvalua
 	const int   N = std::max(4, s3.nx);
 
 	float minCellSize = domainSize / float(N);
-	minCellSize = std::clamp(minCellSize, 0.01f, 10.0f);
 
-	int maxDepth = (int)std::ceil(std::log2(std::max(domainSize / std::max(minCellSize, 1e-6f), 1.0f)));
+	int maxDepth = 6;  // fixed for stability
+	int forceLevels = 2;
 	maxDepth = std::clamp(maxDepth, 3, 10);
 
 	const float k   = s3.contentScale;
@@ -378,12 +371,11 @@ void SurfaceMesh::BuildImplicit(const SurfaceSampling3D& s3, const SurfaceEvalua
 
 	auto signedF = [baseF, iso, k](float x, float y, float z) -> float
 	{
-		float v = baseF(x * k, y * k, z * k);
+		float v = baseF((x - 0.0f) * k, (y - 0.0f) * k, (z - 0.0f) * k);
 		if (!std::isfinite(v)) return 1e30f;
 		return v - iso;
 	};
 
-	const int forceLevels = std::clamp(2, 0, maxDepth);
 
 	Octree tree(bounds, maxDepth, minCellSize, forceLevels);
 	tree.Subdivide(tree.root, signedF, maxDepth);
@@ -391,7 +383,6 @@ void SurfaceMesh::BuildImplicit(const SurfaceSampling3D& s3, const SurfaceEvalua
 	if (tree.Exhausted())
 	{
 		LOG("Octree pool exhausted!");
-		LOG("implicit verts/idx: ", 0, " / ", 0);
 		return;
 	}
 
@@ -403,54 +394,12 @@ void SurfaceMesh::BuildImplicit(const SurfaceSampling3D& s3, const SurfaceEvalua
 	scratch.m_QuantizeStep = std::max(minCellSize * 0.25f, 1e-4f);
 
 	ExtractImplicitMesh(tree.root, signedF, scratch);
+	FinalizeNormals(scratch);
 
 	if (scratch.m_CPU.Indices.empty() || scratch.m_CPU.Vertices.empty())
-	{
-		LOG("implicit verts/idx: ", 0, " / ", 0);
 		return;
-	}
-
-	for (auto& v : scratch.m_CPU.Vertices)
-		v.Normal = glm::vec3(0.0f);
-
-	const auto& idx = scratch.m_CPU.Indices;
-	auto& verts = scratch.m_CPU.Vertices;
-
-	for (size_t i = 0; i + 2 < idx.size(); i += 3)
-	{
-		const uint32_t i0 = idx[i + 0];
-		const uint32_t i1 = idx[i + 1];
-		const uint32_t i2 = idx[i + 2];
-
-		const glm::vec3 p0 = verts[i0].Position;
-		const glm::vec3 p1 = verts[i1].Position;
-		const glm::vec3 p2 = verts[i2].Position;
-
-		glm::vec3 n = glm::cross(p1 - p0, p2 - p0);
-		float len2 = glm::dot(n, n);
-		if (len2 > 1e-20f)
-			n *= (1.0f / std::sqrt(len2));
-		else
-			n = glm::vec3(0.0f, 1.0f, 0.0f);
-
-		verts[i0].Normal += n;
-		verts[i1].Normal += n;
-		verts[i2].Normal += n;
-	}
-
-	for (auto& v : verts)
-	{
-		float len2 = glm::dot(v.Normal, v.Normal);
-		if (len2 > 1e-20f)
-			v.Normal *= (1.0f / std::sqrt(len2));
-		else
-			v.Normal = glm::vec3(0.0f, 1.0f, 0.0f);
-	}
 
 	m_CPU = std::move(scratch.m_CPU);
-
-	LOG("implicit verts/idx: ", (int)m_CPU.Vertices.size(), " / ", (int)m_CPU.Indices.size());
-
 	m_Built = true;
 }
 

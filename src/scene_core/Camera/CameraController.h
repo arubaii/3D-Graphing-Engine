@@ -7,8 +7,9 @@ class CameraController
 public:
 	virtual ~CameraController() = default;
 	virtual void Update(float dt, Input& input) = 0;
-	virtual void OnActivate(Input&) {};
+	virtual void OnActivate(Input&) {}
 	virtual void OnSelect(const glm::vec3&) {}
+	virtual void AddRadiusDelta(float d) {}
 
 
 

@@ -25,8 +25,8 @@ float log10(float x)
 void main(){
 
     if (WorldPos.x < u_BoxMin.x || WorldPos.x > u_BoxMax.x ||
-    WorldPos.z < u_BoxMin.z || WorldPos.z > u_BoxMax.z)
-    discard;
+        WorldPos.z < u_BoxMin.z || WorldPos.z > u_BoxMax.z)
+        discard;
 
     // Invert zoom direction for grid density:
     float cell = gGridCellSize * max(u_ContentScale, 1e-8);

@@ -54,6 +54,7 @@ void Application::Run()
 		m_Scene->m_DOMAIN_RADIUS = m_DebugData.radius;
 		m_Scene->m_SurfaceType   = m_DebugData.surfaceType;
 		m_Scene->m_ShowGrid	     = m_DebugData.showGrid;
+		m_Scene->m_ShowBox	     = m_DebugData.showBox;
 
 		DebugPanel::Render(m_DebugData);
 

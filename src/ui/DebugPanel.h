@@ -13,8 +13,9 @@ struct DebugData
     bool flightMode;
     glm::vec3 cameraPos;
     float pitch, yaw;
-    float greyScale = 0.85f;
+    float greyScale = 0.0f;
     bool showGrid = true;
+    bool showBox = false;
 
     Ref<MathParser::CompiledExpression> expression;
     bool expressionDirty = false;

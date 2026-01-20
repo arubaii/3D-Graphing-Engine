@@ -76,3 +76,8 @@ void OrbitCameraController::OnActivate(Input& input)
 
 	input.GetMouseDelta();
 }
+
+void OrbitCameraController::AddRadiusDelta(float d)
+{
+	m_Radius = std::max(0.1f, m_Radius + d);
+}

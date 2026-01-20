@@ -93,6 +93,8 @@ void DebugPanel::Render(DebugData& data)
 	ImGui::PopItemWidth();
 	if (ImGui::Button("Show Grid"))
 		data.showGrid = !data.showGrid;
+	if (ImGui::Button("Show Bounding Box"))
+		data.showBox = !data.showBox;
 
 
 
@@ -134,11 +136,9 @@ static const PresetEq kPresets[] = {
 	{ "Thin torus (R=8,r=1)",       "f(x,y,z)", "(sqrt(x*x + z*z) - 8)^2 + y*y - 1" },
 	{ "Fat torus (R=6,r=3)",        "f(x,y,z)", "(sqrt(x*x + z*z) - 6)^2 + y*y - 9" },
 
-	{"Genus 3", "f(x,y,z)", "(x^2-1)^2+(y^2-1)^2+(z^2-1)^2+4(x^2y^2+x^2z^2+y^2z^2)+8x*y*z-2(x^2+y^2+z^2)"},
+	{"Genus 3",						"f(x,y,z)", "(x^2-1)^2+(y^2-1)^2+(z^2-1)^2+4(x^2y^2+x^2z^2+y^2z^2)+8x*y*z-2(x^2+y^2+z^2)"},
+	{ "Spiky Thing",				"f(x,y,z)", "z^6-5(x^2+y^2)z^4+5(x^2+y^2)^2z^2+2(5x^4-10x^2y^2+y^4)y*z-1.002(x^2+y^2+z^2)^3+0.2" },
 
-	{ "Gyroid",                     "f(x,y,z)", "sin(x)*cos(y) + sin(y)*cos(z) + sin(z)*cos(x)" },
-	{ "Schwarz P",                  "f(x,y,z)", "cos(x) + cos(y) + cos(z)" },
-	{ "Schwarz D",                  "f(x,y,z)", "sin(x)*sin(y)*sin(z) + sin(x)*cos(y)*cos(z) + cos(x)*sin(y)*cos(z) + cos(x)*cos(y)*sin(z)" },
 
 	{ "Cone (double)",              "f(x,y,z)", "x^2 + z^2 - y^2" },
 	{ "Hyperboloid (1-sheet)",      "f(x,y,z)", "x^2 + z^2 - y^2 - 1" },
@@ -146,19 +146,18 @@ static const PresetEq kPresets[] = {
 
 
 	{ "Tangent cylinder",           "f(x,y,z)", "x^2 + y^2 - 1" },
-	{ "Steiner surface",            "f(x,y,z)", "x*x*y*y + y*y*z*z + z*z*x*x - x*y*z" },
 	{ "Heart",                      "f(x,y,z)", "x^2+4y^2+(1.15z-0.6(2(x^2+.05y^2+.001)^0.7+y^2)^0.3+0.3)^2-1" },
 
 
-	{ "Klein bottle (implicit-ish)", "f(x,y,z)", "(x*x + y*y + z*z + 2*y - 1) * (x*x + y*y + z*z - 2*y - 1) - 8*z*z" },
+	{ "Klein bottle (Bottom)", "f(x,y,z)", "(x^2 + y^2 + z^2 - 1)^2 - 4(x^2 + y^2)" },
 	{ "Quartic blob",               "f(x,y,z)", "x^4 + y^4 + z^4 - 25" },
 
-	{ "Metaballs (2 blobs)",        "f(x,y,z)", "1/(x*x+y*y+z*z+1e-3) + 1/((x-4)*(x-4)+y*y+z*z+1e-3) - 0.35" },
 };
 
 	static int presetIdx = 0;
 
 	ImGui::PushItemWidth(260);
+
 	if (ImGui::BeginCombo("Load Preset Function", kPresets[presetIdx].label))
 	{
 		for (int i = 0; i < (int)(sizeof(kPresets) / sizeof(kPresets[0])); ++i)
@@ -175,7 +174,7 @@ static const PresetEq kPresets[] = {
 
 
 	static int  lastPresetIdx   = -1;
-	static bool requestAutoSet  = true; // auto-apply once on first frame
+	static bool requestAutoSet  = true;
 
 	auto ApplyEquationFromBuffers = [&]()
 	{
@@ -187,19 +186,13 @@ static const PresetEq kPresets[] = {
 			std::set<std::string> vars = data.expression->get_vars();
 			std::vector<std::string> params = GetParamsFromFunctionBuffer(functionBuffer);
 
-			// Build a fast lookup of allowed params
 			std::unordered_set<std::string> allowed(params.begin(), params.end());
 
-			// Allow expressions to use a subsset of the declared parameters
 			for (const auto& v : vars)
 			{
 				if (!allowed.contains(v))
 					throw std::runtime_error("Function parameters do not match expression variables");
 			}
-
-
-			if (params.size() == 3 && vars.empty())
-				throw std::runtime_error("Implicit expression must reference x, y, or z");
 
 			data.surfaceType = DeduceSurfaceType(params);
 			data.expressionDirty = true;
@@ -210,10 +203,9 @@ static const PresetEq kPresets[] = {
 		}
 	};
 
-	// Auto load
 	if (requestAutoSet)
 	{
-		presetIdx = 0; // start at "Empty"
+		presetIdx = 0;
 
 		functionBuffer[0]   = '\0';
 		expressionBuffer[0] = '\0';
@@ -267,12 +259,11 @@ static const PresetEq kPresets[] = {
 			std::set<std::string> vars = data.expression->get_vars();
 			std::vector<std::string> params = GetParamsFromFunctionBuffer(functionBuffer);
 
-			if (vars.size() != params.size())
-				throw std::runtime_error("Function parameters do not match expression variables");
+			std::unordered_set<std::string> allowed(params.begin(), params.end());
 
-			for (const auto& p : params)
+			for (const auto& v : vars)
 			{
-				if (!vars.contains(p))
+				if (!allowed.contains(v))
 					throw std::runtime_error("Function parameters do not match expression variables");
 			}
 
@@ -286,34 +277,8 @@ static const PresetEq kPresets[] = {
 	}
 
 
-	// const bool implicit = (data.surfaceType == SurfaceType::Implicit);
-	//
-	// ImGui::PushItemWidth(65);
-	//
-	// ImGui::AlignTextToFramePadding();
-	// ImGui::Text("x, y, z in [");
-	// ImGui::SameLine();
-	//
-	// ImGui::InputTextWithHint("##DomainGrid", "e.g. 5.0", radiusBuffer, sizeof(radiusBuffer));
-	// ImGui::SameLine();
-	//
-	// ImGui::AlignTextToFramePadding();
-	// ImGui::Text("]");
-	// ImGui::SameLine();
-	//
-	// if (ImGui::Button("Set Domain"))
-	// {
-	// 	float r = std::atof(radiusBuffer);
-	// 	if (std::isfinite(r) && r > 0.0f)
-	// 		data.radius = r;
-	// 	else
-	// 		LOG_ERROR("[Math Parser] Invalid domain radius");
-	// }
-
-
 
 
     ImGui::End();
 }
-
 

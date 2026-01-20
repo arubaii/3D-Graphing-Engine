@@ -19,6 +19,8 @@ public:
 	void SetPivot(const glm::vec3& pivot) { m_Pivot = pivot; }
 	void Update(float dt, Input& input) override;
 	void OnActivate(Input& input) override;		// Reset mouse deltas
+	void AddRadiusDelta(float d) override;
+
 	void OnSelect(const glm::vec3& position) override { SetPivot(position); }
 
 

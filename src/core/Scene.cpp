@@ -10,8 +10,6 @@
 #include <future>
 
 
-
-
 Scene::Scene(Window& window, Input& input)
 	: m_Window(window),
 	  m_Viewport(m_Window.GetViewport()),
@@ -36,10 +34,7 @@ Scene::Scene(Window& window, Input& input)
 			m_CameraProps.FarPlane
 		);
 		cc.Primary = true;
-		//
-		// cc.Camera.SetPosition(DefaultCameraPosition);
-		// cc.Camera.SetRotation(DefaultPitch, DefaultYaw);
-		// cc.Camera.RecalculateView();
+
 
 		m_CameraControllers[m_ActiveController]->SetCamera(cc.Camera);
 		m_CameraControllers[m_ActiveController]->OnSelect(glm::vec3(0.0f));
@@ -127,16 +122,9 @@ void Scene::Render(Renderer& renderer)
 	if (!cam) return;
 	auto& cc = cam.GetComponent<CameraComponent>();
 
-	if (m_ShowGrid)
-		DrawGrid(cc);
-
-	glm::mat4 VP =
-		cc.Camera.GetProjectionMatrix() *
-		cc.Camera.GetViewMatrix();
-
-	const glm::mat4 worldScale = glm::scale(glm::mat4(1.0f), glm::vec3(m_BoxContentScale));
-
-	glm::vec3 lightPos{0.0f};
+	glm::vec3 camPos = cc.Camera.GetPosition();
+	glm::vec3 camForward = cc.Camera.GetForwardVector();
+	glm::vec3 lightPos = camPos + camForward * 2.0f + glm::vec3(0.0f, 1.5f, 0.0f);
 	glm::vec4 lightColor{1.0f};
 
 	auto lightView = m_Registry.view<TransformComponent, TagComponent>();
@@ -146,11 +134,19 @@ void Scene::Render(Renderer& renderer)
 		if (tag.Tag == "Light")
 		{
 			auto& tc = lightView.get<TransformComponent>(e);
-			glm::mat4 lightModel = tc.GetTransform();
-			lightPos = glm::vec3(lightModel[3]);
+			tc.Translation = lightPos;
 			break;
 		}
 	}
+
+	if (m_ShowGrid)
+		DrawGrid(cc);
+
+	glm::mat4 VP =
+		cc.Camera.GetProjectionMatrix() *
+		cc.Camera.GetViewMatrix();
+
+	const glm::mat4 worldScale = glm::scale(glm::mat4(1.0f), glm::vec3(m_BoxContentScaleSurface));
 
 	auto view = m_Registry.view<TransformComponent, MeshComponent, TagComponent>();
 	for (auto e : view)
@@ -166,34 +162,34 @@ void Scene::Render(Renderer& renderer)
 
 		glm::mat4 model = tc.GetTransform();
 		glm::mat4 modelDraw = model;
+
+		if (tag.Tag == "Surface" && m_SurfaceType == SurfaceType::Implicit)
+			modelDraw = worldScale * modelDraw;
+
 		glm::mat4 MVP = VP * modelDraw;
 
 		if (tag.Tag == "Light")
 		{
-			glm::mat4 lightModelAdj = glm::scale(modelDraw, glm::vec3(0.3f));
-
-			m_LightShader->Bind();
-			renderer.SetShader(m_LightShader);
-			m_LightShader->SetMat4("u_MVP", VP * lightModelAdj);
-			m_LightShader->SetVec4("u_LightColor", lightColor);
-			renderer.Draw(gpu.VA, gpu.IB);
+			continue;
 		}
 		else if (tag.Tag == "Y-Axis" && m_ShowGrid)
 		{
+			continue;
 		}
-		else if (tag.Tag == "DomainBox")
+		else if (tag.Tag == "DomainBox" )
 		{
 			m_BaseShader->Bind();
 			renderer.SetShader(m_BaseShader);
 			m_BaseShader->SetMat4("u_MVP", MVP);
 			m_BaseShader->SetMat4("u_Model", modelDraw);
-			renderer.DrawLines(gpu.VA, gpu.IB);
+			if (m_ShowBox)
+				renderer.DrawLines(gpu.VA, gpu.IB);
 		}
 		else if (tag.Tag == "Surface")
 		{
-
 			m_PhongShader->Bind();
 			renderer.SetShader(m_PhongShader);
+			m_PhongShader->SetVec4("u_Color", glm::vec4(0.1f, 0.4f, 0.95f, 1.0f));
 			m_PhongShader->SetPhongUniforms(
 				modelDraw,
 				cc.Camera.GetProjectionMatrix(),
@@ -201,6 +197,10 @@ void Scene::Render(Renderer& renderer)
 				lightColor,
 				cc.Camera
 			);
+
+			m_PhongShader->SetMat4("u_MVP", MVP);
+			m_PhongShader->SetMat4("u_Model", modelDraw);
+
 			m_PhongShader->SetVec3("u_BoxMin", m_BoxMin);
 			m_PhongShader->SetVec3("u_BoxMax", m_BoxMax);
 			m_PhongShader->SetFloat("u_ContentScale", m_BoxContentScaleSurface);
@@ -230,6 +230,7 @@ void Scene::Render(Renderer& renderer)
 		{
 			m_PhongShader->Bind();
 			renderer.SetShader(m_PhongShader);
+
 			m_PhongShader->SetPhongUniforms(
 				modelDraw,
 				cc.Camera.GetProjectionMatrix(),
@@ -237,11 +238,12 @@ void Scene::Render(Renderer& renderer)
 				lightColor,
 				cc.Camera
 			);
+
 			renderer.Draw(gpu.VA, gpu.IB);
 		}
 	}
 
-	DrawScreenOverlays(cc, renderer);
+	// DrawScreenOverlays(cc, renderer);
 }
 
 void Scene::Update(float dt, Input& input)
@@ -275,7 +277,36 @@ void Scene::Update(float dt, Input& input)
 		m_BoxContentScaleSurface = m_BoxContentScaleSurface + (target - m_BoxContentScaleSurface) * a;
 	}
 
-	SurfaceSamplingConfig desired = ComputeSamplingConfig(cc.Camera);
+
+	SurfaceSamplingConfig desired{};
+
+	if (m_SurfaceType == SurfaceType::Implicit && !m_ImplicitDomainInitialized)
+	{
+		auto surfaceView = m_Registry.view<SurfaceComponent>();
+		for (auto e : surfaceView)
+		{
+			auto& sc = surfaceView.get<SurfaceComponent>(e);
+			if (sc.Expression)
+			{
+				SurfaceEvaluator eval(SurfaceType::Implicit, sc.Expression);
+
+				float r = eval.EstimateImplicitDomainRadius();
+				r = std::clamp(r, MIN_DOMAIN_RADIUS, MAX_DOMAIN_RADIUS);
+
+				m_DOMAIN_RADIUS = r;
+
+
+				m_LastDomainRadiusUsed = r;
+				m_ImplicitDomainInitialized = true;
+				break;
+			}
+		}
+	}
+
+	if (m_SurfaceType == SurfaceType::Implicit)
+		desired = ComputeSamplingConfigStatic();
+	else
+		desired = ComputeSamplingConfig(cc.Camera);
 
 	bool needRebuild = false;
 
@@ -288,30 +319,32 @@ void Scene::Update(float dt, Input& input)
 	{
 		if (m_SurfaceType == SurfaceType::Implicit)
 		{
-			const int oldN = m_LastSampling.s3.nx;
-			const int newN = desired.s3.nx;
-			if (std::abs(newN - oldN) >= 4) needRebuild = true;
+			if (m_SurfaceType == SurfaceType::Implicit)
+			{
 
-			const float oldK = m_LastSampling.s3.contentScale;
-			const float newK = desired.s3.contentScale;
-			const float dk = std::abs(std::log2(std::max(newK, 1e-6f) / std::max(oldK, 1e-6f)));
-			if (dk >= 0.125f) needRebuild = true;
+			}
 		}
 		else
 		{
 			const int oldN = m_LastSampling.s2.resolution;
 			const int newN = desired.s2.resolution;
-			if (std::abs(newN - oldN) >= 8) needRebuild = true;
+			if (std::abs(newN - oldN) >= 8)
+				needRebuild = true;
 
 			const float oldK = m_LastSampling.s2.contentScale;
 			const float newK = desired.s2.contentScale;
-			const float dk = std::abs(std::log2(std::max(newK, 1e-6f) / std::max(oldK, 1e-6f)));
-			if (dk >= 0.125f) needRebuild = true;
+			const float dk =
+				std::abs(std::log2(std::max(newK, 1e-6f) / std::max(oldK, 1e-6f)));
+			if (dk >= 0.125f)
+				needRebuild = true;
 		}
 
-		m_DOMAIN_RADIUS = std::clamp(m_DOMAIN_RADIUS, MIN_DOMAIN_RADIUS, MAX_DOMAIN_RADIUS);
-		if (std::abs(m_DOMAIN_RADIUS - m_LastDomainRadiusUsed) > 1e-4f)
-			needRebuild = true;
+		if (m_SurfaceType != SurfaceType::Implicit)
+		{
+			m_DOMAIN_RADIUS = std::clamp(m_DOMAIN_RADIUS, MIN_DOMAIN_RADIUS, MAX_DOMAIN_RADIUS);
+			if (std::abs(m_DOMAIN_RADIUS - m_LastDomainRadiusUsed) > 1e-4f)
+				needRebuild = true;
+		}
 	}
 
 	if (needRebuild)
@@ -334,7 +367,6 @@ void Scene::Update(float dt, Input& input)
 	for (auto e : surfaceView)
 	{
 		auto& sc = surfaceView.get<SurfaceComponent>(e);
-		auto& mc = surfaceView.get<MeshComponent>(e);
 		if (!sc.Dirty)
 			continue;
 
@@ -345,13 +377,24 @@ void Scene::Update(float dt, Input& input)
 			continue;
 		}
 
-		// Async remesh
+
 		if (!m_RemeshBusy.load())
 		{
 			const uint64_t jobId = ++m_RemeshJobId;
 
 			const SurfaceType surfType = m_SurfaceType;
-			const SurfaceSamplingConfig sampling = desired;
+
+			if (surfType == SurfaceType::Implicit)
+			{
+				SurfaceEvaluator eval(surfType, sc.Expression);
+				float r = eval.EstimateImplicitDomainRadius();
+				r = std::clamp(r, MIN_DOMAIN_RADIUS, MAX_DOMAIN_RADIUS);
+				m_DOMAIN_RADIUS = r;
+			}
+
+			const SurfaceSamplingConfig sampling = (surfType == SurfaceType::Implicit)
+				? ComputeSamplingConfigStatic()
+				: desired;
 
 			const std::string exprStr = sc.Expression->get_expression_string();
 
@@ -377,17 +420,17 @@ void Scene::Update(float dt, Input& input)
 					m_PendingMesh.jobId = jobId;
 					m_PendingMesh.ready.store(true);
 				}
+				if (surfType == SurfaceType::Implicit)
+				{
 
+				}
 				m_RemeshBusy.store(false);
 			});
 
 			sc.Dirty = false;
 		}
-
-
 	}
 
-	// Apply finished Mesh on main thrread
 	if (m_PendingMesh.ready.load())
 	{
 		PendingMeshResult result;
@@ -420,7 +463,6 @@ void Scene::Update(float dt, Input& input)
 			}
 		}
 	}
-
 }
 
 void Scene::DrawScreenOverlays(const CameraComponent& cc, Renderer& renderer)
@@ -460,7 +502,6 @@ void Scene::DrawGrid(const CameraComponent& cc) const
 	glDepthMask(GL_TRUE);
 	glDisable(GL_BLEND);
 }
-
 
 void Scene::SetPrimaryCamera(Entity entity)
 {
@@ -520,13 +561,18 @@ SurfaceSamplingConfig Scene::ComputeSamplingConfigStatic()
 
 	if (m_SurfaceType == SurfaceType::Implicit)
 	{
-		float r = m_DOMAIN_RADIUS;
-		r = std::clamp(r, 0.5f, 200.0f);
+		// Always sample in the fixed world-space box
+		cfg.s3.min = { -m_DOMAIN_RADIUS, -m_DOMAIN_RADIUS, -m_DOMAIN_RADIUS };
+		cfg.s3.max = {  m_DOMAIN_RADIUS,  m_DOMAIN_RADIUS,  m_DOMAIN_RADIUS };
 
-		cfg.s3.min = {-r, -r, -r};
-		cfg.s3.max = { r,  r,  r};
-		cfg.s3.nx = cfg.s3.ny = cfg.s3.nz = 32;
+
+		cfg.s3.contentScale = 1.0f;
+
+		// Resolution is independent of radius
+		cfg.s3.nx = cfg.s3.ny = cfg.s3.nz = m_ImplicitStaticRes;
 		cfg.s3.iso = 0.0f;
+
+
 	}
 	else
 	{
@@ -543,10 +589,22 @@ SurfaceSamplingConfig Scene::ComputeSamplingConfig(const PerspectiveCamera& cam)
 	switch (m_SurfaceType)
 	{
 		case SurfaceType::Implicit:
-			cfg.s3 = ComputeSamplingFromCamera3D(cam);
+		{
+			float r = m_DOMAIN_RADIUS;
+
+
+			cfg.s3.min = { -r, -r, -r };
+			cfg.s3.max = {  r,  r,  r };
+
+			cfg.s3.nx = cfg.s3.ny = cfg.s3.nz = m_ImplicitStaticRes;
+			cfg.s3.iso = 0.0f;
+
+			cfg.s3.contentScale = 1.0f;
 			break;
+		}
 
 		default:
+
 			cfg.s2 = ComputeSamplingFromCamera(cam);
 			break;
 	}
@@ -581,34 +639,6 @@ SurfaceSampling Scene::ComputeSamplingFromCamera(const PerspectiveCamera& cam)
 	s.resolution = N;
 	s.contentScale = k;
 	return s;
-}
-
-SurfaceSampling3D Scene::ComputeSamplingFromCamera3D(const PerspectiveCamera& cam)
-{
-	const glm::vec3 camPos = cam.GetPosition();
-	const glm::vec3 center = {0.0f, 0.0f, 0.0f};
-
-	const float distance = glm::length(camPos - center);
-	const float unitsPerPixel = cam.GetWorldUnitsPerPixel(distance, m_Viewport[1]);
-
-	const float boxSpan = (m_BoxMax.x - m_BoxMin.x);
-	const float domainSpan = 2.0f * m_DOMAIN_RADIUS;
-
-	const float zoom = std::max(m_BoxContentScaleSurface, 1e-6f);
-
-	const float k = (boxSpan > 0.0f) ? (domainSpan / boxSpan) / zoom : zoom;
-
-	const float worldStep = unitsPerPixel * float(m_TargetPixelsPerSample);
-	int N = (worldStep > 0.0f) ? int(boxSpan / worldStep) : m_MaxImplicitRes;
-	N = std::clamp(N, m_MinImplicitRes, m_MaxImplicitRes);
-
-	SurfaceSampling3D s3{};
-	s3.min = m_BoxMin;
-	s3.max = m_BoxMax;
-	s3.nx = s3.ny = s3.nz = N;
-	s3.iso = 0.0f;
-	s3.contentScale = k;
-	return s3;
 }
 
 Entity Scene::InitEntity(const std::string& name)

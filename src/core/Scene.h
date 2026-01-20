@@ -5,7 +5,7 @@
 #include <entt/entt.hpp>
 #include "utils/SmartPtrs.h"
 #include "utils/UUID.h"
-#include "scene_core/Components.h" // Move to .cpp later
+#include "scene_core/Components.h"
 #include "Renderer.h"
 #include "Window.h"
 #include "io/Input.h"
@@ -18,7 +18,7 @@
 #include <atomic>
 
 
-class Entity; // Forward decl
+class Entity;
 
 struct CameraProps
 {
@@ -166,7 +166,6 @@ private:
 
 
 public:
-	// TODO: Camera, see perspective camera for defaults --> refactor later
 	static constexpr glm::vec3 DefaultCameraPosition{ 46.14f, 38.95f, 45.98f };
 	static constexpr float     DefaultRadius =  50.0f;
 	static constexpr float     DefaultPitch =  30.34;
@@ -184,37 +183,42 @@ public:
 	bool m_ShowGrid = true;
 
 	// LOD tuning
-	int   m_TargetPixelsPerSample = 4;     // 2..6
+	int   m_TargetPixelsPerSample = 4;     // 2...6
 	float m_MinDomainStep         = 0.01f; // smallest spacing in "math/domain" units
 	float m_MaxDomainStep         = 2.0f;  // largest spacing in "math/domain" units
 
 	int   m_MinExplicitRes        = 16;
 	int   m_MaxExplicitRes        = 256;
-	int   m_MinImplicitRes        = 16;
-	int   m_MaxImplicitRes        = 256;
 
 	float MIN_DOMAIN_RADIUS = 0.5f;
-	float MAX_DOMAIN_RADIUS = 200.0f;
+	float MAX_DOMAIN_RADIUS = 2000.0f;
 
 	int   m_LastExplicitRes       = -1;
 	float m_LastDomainRadiusUsed  = -1.0f;
 
 	float m_BoxContentScaleSurface = 1.0f;
-	float m_SurfaceZoomSmoothingHz = 18.0f;   // 12..25 feels good
+	float m_SurfaceZoomSmoothingHz = 18.0f;   // 12...25 feels good
 	float m_RemeshCooldownSec      = 0.04f;   // ~25 Hz max remesh
 	float m_RemeshCooldownLeft     = 0.0f;
 	bool  m_SurfacePendingRemesh   = false;
 
-	int m_ImplicitStaticRes = 128;
-	float MAX_IMPLICIT_RADIUS = 50.0f;
+	int   m_ImplicitStaticRes = 1024;
+	float MAX_IMPLICIT_RADIUS = 500.0f;
 
 	bool m_ImplicitBuiltOnce = false;
 	bool m_ImplicitNeedsBuild = true;
 
+	bool m_ImplicitDomainInitialized = false;
 
 	std::future<Mesh> m_ImplicitJob;
 	std::atomic<bool> m_ImplicitJobRunning{false};
 	std::atomic<bool> m_ImplicitJobReady{false};
 	Mesh m_ImplicitJobResult;
+
+	glm::mat4 m_ImplicitVP = glm::mat4(1.0f);
+	bool m_ImplicitVPInitialized = false;
+
+	bool m_ShowBox = false;
+
 };
 
