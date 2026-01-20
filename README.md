@@ -1,4 +1,10 @@
-3D Graphing Engine
+The project uses the Git submodules: ImGui, YAML
+
+Clone with:
+
+```
+git clone --recurse-submodules https://github.com/arubaii/3D-Graphing-Engine.git
+```
 
 This engine is built for visualizing explicit ($f(x,y) = z$) and implicit ($f(x,y,z) - c = 0$) surfaces.  Explicit surfaces are computed standardly by domain sampling and remeshed at runtime when the user scrolls in/out. Implicit surfaces are extracted with an octree-based [marching cubes](https://en.wikipedia.org/wiki/Marching_cubes) pipeline. The math parser for user input is custom, so it isn't as robust as other libraries that support far more sophisticated and exotic parameterized functions.
 
