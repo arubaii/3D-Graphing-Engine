@@ -1,5 +1,6 @@
 #include "DebugPanel.h"
 #include "math_parser.h"
+#include "core/Scene.h"
 #include "surface/SurfaceTypes.h"
 #include "utils/Log.h"
 
@@ -77,25 +78,51 @@ static SurfaceType DeduceSurfaceType(const std::vector<std::string>& params)
 
 
 
-void DebugPanel::Render(DebugData& data)
+void DebugPanel::Render(DebugData& data, Scene* scene)
 {
     ImGui::Begin("Debug");
-    ImGui::Text("FPS: %d", data.fps);
-    ImGui::Text("Frame Time: %.3f ms", data.frameTime);
-    ImGui::Text("Flight Mode:");
-    ImGui::Text("Camera Position: (%.2f, %.2f, %.2f)",
-                data.cameraPos.x, data.cameraPos.y, data.cameraPos.z);
-    ImGui::Text("Camera View (Pitch, Yaw): (%.2f, %.2f)",
-                data.pitch, data.yaw);
 
 	ImGui::PushItemWidth(70);
 	ImGui::SliderFloat("Background Greyscale", &data.greyScale, 0.0f, 1.0f, "%.2f");
+	ImGui::SliderFloat("Camera Radius", &data.radius, 0.001f, 100.0f, "%.2f");
 	ImGui::PopItemWidth();
 	if (ImGui::Button("Show Grid"))
 		data.showGrid = !data.showGrid;
 	if (ImGui::Button("Show Bounding Box"))
 		data.showBox = !data.showBox;
 
+	ImGui::PushItemWidth(260);
+
+	struct ColorProfile { const char* label; bool pastel; bool normal; bool user; };
+
+	static const ColorProfile profiles[] = {
+		{ "Pastel",     true,  false, false },
+		{ "Normal",     false, true,  false },
+		{ "User Color", false, false, true  },
+	};
+
+	static int profileIdx = 0;
+
+	if (ImGui::BeginCombo("Surface Coloring", profiles[profileIdx].label))
+	{
+		for (int i = 0; i < (int)(sizeof(profiles) / sizeof(profiles[0])); ++i)
+		{
+			const bool selected = (profileIdx == i);
+			if (ImGui::Selectable(profiles[i].label, selected))
+			{
+				profileIdx = i;
+				data.usePastel = profiles[i].pastel;
+				data.useNormal = profiles[i].normal;
+				data.userColor = profiles[i].user;
+			}
+			if (selected) ImGui::SetItemDefaultFocus();
+		}
+		ImGui::EndCombo();
+	}
+
+	ImGui::PopItemWidth();
+
+	ImGui::ColorEdit4("Base Color", &data.surfaceColor.x);
 
 
 	// ====================================== PARSING ========================================
@@ -140,19 +167,42 @@ static const PresetEq kPresets[] = {
 	{ "Spiky Thing",				"f(x,y,z)", "z^6-5(x^2+y^2)z^4+5(x^2+y^2)^2z^2+2(5x^4-10x^2y^2+y^4)y*z-1.002(x^2+y^2+z^2)^3+0.2" },
 
 
-	{ "Cone (double)",              "f(x,y,z)", "x^2 + z^2 - y^2" },
-	{ "Hyperboloid (1-sheet)",      "f(x,y,z)", "x^2 + z^2 - y^2 - 1" },
-	{ "Hyperboloid (2-sheet)",      "f(x,y,z)", "y^2 - x^2 - z^2 - 1" },
-
-
-	{ "Tangent cylinder",           "f(x,y,z)", "x^2 + y^2 - 1" },
-	{ "Heart",                      "f(x,y,z)", "x^2+4y^2+(1.15z-0.6(2(x^2+.05y^2+.001)^0.7+y^2)^0.3+0.3)^2-1" },
+	{ "Tangent cylinder",       "f(x,y,z)", "x^2 + y^2 - 1" },
+	{ "Heart",                  "f(x,y,z)", "(x/3)^2 + 4(y/3)^2 + (1.15(z/3) - 0.6(2((x/3)^2 + 0.05(y/3)^2 + 0.001)^0.7 + (y/3)^2)^0.3 + 0.3)^2 - 1" },
 
 
 	{ "Klein bottle (Bottom)", "f(x,y,z)", "(x^2 + y^2 + z^2 - 1)^2 - 4(x^2 + y^2)" },
-	{ "Quartic blob",               "f(x,y,z)", "x^4 + y^4 + z^4 - 25" },
+	{ "Quartic blob",          "f(x,y,z)", "x^4 + y^4 + z^4 - 25" },
+
+	{ "Gyroid",               "f(x,y,z)", "sin(x)cos(y)+sin(y)cos(z) + sin(z)cos(x)" },
+	{ "Spheres",	              "f(x,y,z)", "exp(x+y)(sin(2x)sin(2y)sin(2z) - 0.9)"}
+
+
 
 };
+
+	ImGui::PushItemWidth(260);
+
+	static int optionIdx = 0;
+	static const char* options[] = { "Standard", "Higher Quality", "Highest Quality" };
+
+	if (ImGui::BeginCombo("Implicit Function Quality", options[optionIdx]))
+	{
+		for (int i = 0; i < 3; ++i)
+		{
+			const bool selected = (optionIdx == i);
+			if (ImGui::Selectable(options[i], selected))
+			{
+				optionIdx = i;
+				data.octreeDepth = 6 + i;
+				data.infiniteFinalRes += 32*i;
+			}
+			if (selected) ImGui::SetItemDefaultFocus();
+		}
+		ImGui::EndCombo();
+	}
+
+	ImGui::PopItemWidth();
 
 	static int presetIdx = 0;
 
@@ -182,7 +232,9 @@ static const PresetEq kPresets[] = {
 		{
 			std::string s(expressionBuffer);
 			data.expression->set_expression(s);
-
+			data.expression->set_vars("x", 0.0);
+			data.expression->set_vars("y", 0.0);
+			data.expression->set_vars("z", 0.0);
 			std::set<std::string> vars = data.expression->get_vars();
 			std::vector<std::string> params = GetParamsFromFunctionBuffer(functionBuffer);
 
@@ -196,6 +248,10 @@ static const PresetEq kPresets[] = {
 
 			data.surfaceType = DeduceSurfaceType(params);
 			data.expressionDirty = true;
+
+
+			if (data.surfaceType == SurfaceType::Implicit)
+				scene->OnImplicitExpressionChanged();
 		}
 		catch (const std::exception& e)
 		{
@@ -269,6 +325,9 @@ static const PresetEq kPresets[] = {
 
 			data.surfaceType = DeduceSurfaceType(params);
 			data.expressionDirty = true;
+
+			if (data.surfaceType == SurfaceType::Implicit)
+				scene->OnImplicitExpressionChanged();
 		}
 		catch (const std::exception& e)
 		{
@@ -278,7 +337,5 @@ static const PresetEq kPresets[] = {
 
 
 
-
     ImGui::End();
 }
-

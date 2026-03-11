@@ -1,0 +1,1 @@
+/Users/ahmadrubaii/emsdk/upstream/emscripten/em++ -O3 -DNDEBUG "CMakeFiles/yaml-cpp-sandbox.dir/sandbox.cpp.o" -o sandbox.html  ../libyaml-cpp.a

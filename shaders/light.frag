@@ -1,8 +1,10 @@
-#version 410 core
+#version 300 es
+precision highp float;
 
 out vec4 FragColor;
 uniform vec4 u_LightColor;
 
-void main() {
+void main()
+{
     FragColor = u_LightColor;
 }

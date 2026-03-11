@@ -45,10 +45,10 @@ private:
 	bool m_Built = false;
 
 public:
-	void Build(const SurfaceSamplingConfig& cfg, const SurfaceEvaluator& eval);
+	void Build(const SurfaceSamplingConfig& cfg, const SurfaceEvaluator& eval, int samplingDepth);
 	void BuildExplicit(const SurfaceSampling& s, const SurfaceEvaluator& eval);
 
-	void BuildImplicit(const SurfaceSampling3D& s3, const SurfaceEvaluator& eval);
+	void BuildImplicit(const SurfaceSampling3D& s3, const SurfaceEvaluator& eval, const int& depth);
 
 	void Draw() const;
 

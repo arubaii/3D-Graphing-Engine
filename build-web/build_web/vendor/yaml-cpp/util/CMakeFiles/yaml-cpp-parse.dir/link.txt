@@ -1,0 +1,1 @@
+/Users/ahmadrubaii/emsdk/upstream/emscripten/em++ -O3 -DNDEBUG "CMakeFiles/yaml-cpp-parse.dir/parse.cpp.o" -o parse.html  ../libyaml-cpp.a

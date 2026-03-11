@@ -67,6 +67,16 @@ public:
 	template<class T>
 	void OnComponentAdded(Entity entity, T &component);
 
+	void InitImplicitFieldTex(int nx, int ny, int nz);
+
+	void UpdateImplicitFieldVolume(const SurfaceEvaluator& eval, const SurfaceSampling3D& s3, int res);
+
+	void OnImplicitExpressionChanged();
+
+	void StartImplicitBake(const SurfaceEvaluator &eval, const SurfaceSampling3D &s3, int res);
+
+	void PumpImplicitBake(int rowsPerFrame);
+
 	void DrawGrid(const CameraComponent& cc) const;
 
 
@@ -146,12 +156,11 @@ private:
 
 	unsigned int m_GridVAO = 0;
 	Ref<Shader> m_GridShader;
-	Ref<Shader> m_BasisShader;
 	Ref<Shader> m_BaseShader;
 	Ref<Shader> m_CrosshairShader;
 	Ref<Shader> m_LightShader;
 	Ref<Shader> m_PhongShader;
-	Ref<Shader> m_OutlineShader;
+	Ref<Shader> m_ImplicitRaymarchShader;
 
 	VertexBufferLayout m_CrosshairLayout;
 	VertexBuffer m_CrosshairVB;
@@ -163,62 +172,139 @@ private:
 
 
 	std::string m_LastImplicitExpr = "";
+	bool m_ImplicitIsInfinite = false;
 
+	GLuint m_ImplicitFieldTex = 0;
+	int m_FieldNx = 0, m_FieldNy = 0, m_FieldNz = 0;
+
+	// Infinite implicit (volume) update control
+	bool  m_ImplicitVolDirty = true;          // needs upload
+	bool  m_ImplicitVolPreview = true;        // while interacting
+	float m_ImplicitVolUpdateTimer = 0.0f;    // throttling
+	float m_ImplicitVolIdleTimer   = 0.0f;    // detect “stopped moving”
+
+	float m_LastInfiniteK = 0.0f;
+	glm::vec3 m_LastInfiniteMin = glm::vec3(0.0f);
+	glm::vec3 m_LastInfiniteMax = glm::vec3(0.0f);
+
+	glm::vec3 m_LastBakedMin = glm::vec3(-10.0f, -10.0f, -10.0f);
+	glm::vec3 m_LastBakedMax = glm::vec3( 10.0f,  10.0f,  10.0f);
+	float     m_LastBakedK   = 1.0f;
+
+
+
+	GLuint m_FullscreenVAO = 0;
+
+	struct ImplicitBakeState
+	{
+		bool active = false;
+		int nx = 0, ny = 0, nz = 0;
+
+		glm::vec3 mn{};
+		glm::vec3 mx{};
+		glm::vec3 span{};
+		float iso = 0.0f;
+		float k = 1.0f;
+
+		int z = 0;          // current slice
+		int y = 0;          // current row within slice
+
+		std::vector<float> vox; // full volume buffer
+		std::function<float(float,float,float)> F;
+
+		bool uploadEachSlice = true;
+	};
+
+	ImplicitBakeState m_ImplicitBake;
 
 public:
 	static constexpr glm::vec3 DefaultCameraPosition{ 46.14f, 38.95f, 45.98f };
-	static constexpr float     DefaultRadius =  50.0f;
+	static constexpr float     DefaultRadius =  30.0f;
 	static constexpr float     DefaultPitch =  30.34;
 	static constexpr float     DefaultYaw   = 228.20f;
 	float m_ZoomLog2 = 0.0f;
 
-	glm::vec3 m_BoxMin{-10.0f, -10.0f, -10.0f};
-	glm::vec3 m_BoxMax{ 10.0f,  10.0f,  10.0f};
-	float m_BoxContentScale = 1.0f;
+	glm::vec3 BoxMin{-10.0f, -10.0f, -10.0f};
+	glm::vec3 BoxMax{ 10.0f,  10.0f,  10.0f};
+	float BoxContentScale = 1.0f;
 
-	MathParser::CompiledExpression m_SurfaceExpression;
+	MathParser::CompiledExpression SurfaceExpression;
 
-	SurfaceSamplingConfig m_LastSampling;
-	bool m_HasLastSampling = false;
-	bool m_ShowGrid = true;
+	SurfaceSamplingConfig LastSampling;
+	bool HasLastSampling = false;
+	bool ShowGrid = true;
 
 	// LOD tuning
-	int   m_TargetPixelsPerSample = 4;     // 2...6
-	float m_MinDomainStep         = 0.01f; // smallest spacing in "math/domain" units
-	float m_MaxDomainStep         = 2.0f;  // largest spacing in "math/domain" units
+	int   TargetPixelsPerSample = 5;     // 2...6
+	float MinDomainStep         = 0.01f;
+	float MaxDomainStep         = 2.0f;
 
-	int   m_MinExplicitRes        = 16;
-	int   m_MaxExplicitRes        = 256;
+	int   MinExplicitRes        = 32;
+	int   MaxExplicitRes        = 512;
 
 	float MIN_DOMAIN_RADIUS = 0.5f;
 	float MAX_DOMAIN_RADIUS = 2000.0f;
 
-	int   m_LastExplicitRes       = -1;
-	float m_LastDomainRadiusUsed  = -1.0f;
+	int   LastExplicitRes       = -1;
+	float LastDomainRadiusUsed  = -1.0f;
 
-	float m_BoxContentScaleSurface = 1.0f;
-	float m_SurfaceZoomSmoothingHz = 18.0f;   // 12...25 feels good
-	float m_RemeshCooldownSec      = 0.04f;   // ~25 Hz max remesh
-	float m_RemeshCooldownLeft     = 0.0f;
-	bool  m_SurfacePendingRemesh   = false;
+	float BoxContentScaleSurface = 1.0f;
+	float SurfaceZoomSmoothingHz = 18.0f;   // 12...25 feels good
+	float RemeshCooldownSec      = 0.04f;   // ~25 Hz max remesh
+	float RemeshCooldownLeft     = 0.0f;
+	bool  SurfacePendingRemesh   = false;
 
-	int   m_ImplicitStaticRes = 1024;
+	int   ImplicitStaticRes = 2048;
 	float MAX_IMPLICIT_RADIUS = 500.0f;
 
-	bool m_ImplicitBuiltOnce = false;
-	bool m_ImplicitNeedsBuild = true;
+	bool ImplicitBuiltOnce = false;
+	bool ImplicitNeedsBuild = true;
 
-	bool m_ImplicitDomainInitialized = false;
+	bool ImplicitDomainInitialized = false;
 
-	std::future<Mesh> m_ImplicitJob;
-	std::atomic<bool> m_ImplicitJobRunning{false};
-	std::atomic<bool> m_ImplicitJobReady{false};
-	Mesh m_ImplicitJobResult;
+	std::future<Mesh> ImplicitJob;
+	std::atomic<bool> ImplicitJobRunning{false};
+	std::atomic<bool> ImplicitJobReady{false};
+	Mesh ImplicitJobResult;
 
-	glm::mat4 m_ImplicitVP = glm::mat4(1.0f);
-	bool m_ImplicitVPInitialized = false;
+	glm::mat4 ImplicitVP = glm::mat4(1.0f);
+	bool ImplicitVPInitialized = false;
 
-	bool m_ShowBox = false;
+	bool ShowBox = false;
+
+	glm::vec4 m_SurfaceColor;
+
+	float m_OrbitRadius;
+
+	float m_ContentZoomVelocity = 0.0f;
+	float m_MouseScrollSensitivity = 0.12f;
+	float m_KeyZoomSensitivity = 0.5f;
+	float m_ZoomDamping = 8.0f;
+
+	glm::vec3 m_GridBorderGreyscale;
+
+	int OctreeDepth;
+
+	// Tunables
+	float m_InfinitePreviewHz = 20.0f;        // <= 10 updates/sec while scrolling
+	float m_InfiniteIdleSettleSec = 0.20f;    // after 0.2s of no zoom -> HQ update
+	int   m_InfinitePreviewRes;
+	int   m_InfiniteFinalRes;                 // (128/160/192)
+
+	float m_ClosedImplicitIdleTimer   = 0.0f;
+	bool  m_ClosedImplicitVolDirty    = false;
+
+	float m_ExplicitIdleTimer      = 0.0f;
+	float m_ExplicitIdleSettleSec  = 0.15f;
+
+	float GridTextureScale = 4.5f;
+	float GridTextureWidth  = 1.0f;
+	float GridTextureAlpha  = 0.20f;
+
+	bool UsePastel;
+	bool UseNormal;
+	bool UserColor;
+
 
 };
 

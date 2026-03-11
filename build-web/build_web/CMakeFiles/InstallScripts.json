@@ -1,0 +1,12 @@
+{
+	"InstallScripts" : 
+	[
+		"/Users/ahmadrubaii/3D-Graphing-Engine/build-web/build_web/cmake_install.cmake",
+		"/Users/ahmadrubaii/3D-Graphing-Engine/build-web/build_web/_deps/entt-build/cmake_install.cmake",
+		"/Users/ahmadrubaii/3D-Graphing-Engine/build-web/build_web/_deps/glm-build/cmake_install.cmake",
+		"/Users/ahmadrubaii/3D-Graphing-Engine/build-web/build_web/_deps/glm-build/glm/cmake_install.cmake",
+		"/Users/ahmadrubaii/3D-Graphing-Engine/build-web/build_web/vendor/yaml-cpp/cmake_install.cmake",
+		"/Users/ahmadrubaii/3D-Graphing-Engine/build-web/build_web/vendor/yaml-cpp/util/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

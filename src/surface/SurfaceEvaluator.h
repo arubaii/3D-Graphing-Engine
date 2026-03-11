@@ -40,7 +40,11 @@ public:
 
 	float EstimateImplicitDomainRadius() const;
 
+	bool IsImplicitLikelyInfinite() const;
+
 
 	bool IsEmpty() const { return m_IsEmpty; }
+
+	float GetMaxDomainRange() const { return m_MAX_DOMAIN_RANGE; }
 
 };

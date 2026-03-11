@@ -1,6 +1,9 @@
-#version 410 core
+#version 300 es
+precision highp float;
+
 layout (location = 0) in vec3 pos;
 
-void main (){
+void main()
+{
     gl_Position = vec4(pos, 1.0);
 }

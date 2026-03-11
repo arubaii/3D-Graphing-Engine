@@ -178,7 +178,12 @@ namespace MathParser
 			{
 				auto it = vars.find(m_Name);
 				if (it == vars.end())
-					throw std::runtime_error("Undefined variable: " + m_Name);
+				{
+					std::string msg = "Undefined variable: " + m_Name;
+					std::fprintf(stderr, "%s\n", msg.c_str());
+					std::fflush(stderr);
+					return 0.0;
+				}
 				return it->second;
 			}
 

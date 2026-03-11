@@ -21,14 +21,21 @@ public:
 	Window(const WindowProperties& props = WindowProperties());
 	~Window();
 
-	// Use sparingly, currently only used for m_ImGuiLayer in Application.cpp
 	GLFWwindow* GetGLFWwindow() const { return m_Window; }
 
 	int	GetWidth()  const { return m_WindowProperties.Width; }
 	int	GetHeight()	const { return m_WindowProperties.Height; }
+
+	float GetDPIScale() const;
+
+	int  GetFBW() const { return m_FramebufferWidth; }
+	int  GetFBH() const { return m_FramebufferHeight; }
+
+
+
 	glm::vec2 GetViewport() const
 	{
-		return glm::vec2(m_WindowProperties.Width, m_WindowProperties.Height);
+		return glm::vec2(m_FramebufferWidth, m_FramebufferHeight);
 	}
 	float GetAspectRatio() const
 	{
@@ -64,9 +71,10 @@ public:
 	void SwapBuffers() const;
 	void PollEvents()  const;
 
+	int m_FramebufferWidth;
+	int m_FramebufferHeight;
 private:
 	GLFWwindow* m_Window = nullptr;
 	WindowProperties m_WindowProperties;
-	int m_FramebufferWidth;
-	int m_FramebufferHeight;
+
 };

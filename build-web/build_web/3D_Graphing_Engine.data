@@ -1,0 +1,680 @@
+#version 300 es
+precision highp float;
+
+in vec3 v_Color;
+out vec4 FragColor;
+
+void main()
+{
+    FragColor = vec4(v_Color, 1.0);
+}#version 300 es
+precision highp float;
+
+layout (location = 0) in vec3 a_Position;
+layout (location = 3) in vec3 a_Color;
+
+uniform mat4 u_MVP;
+out vec3 v_Color;
+
+void main()
+{
+    v_Color = a_Color;
+    gl_Position = u_MVP * vec4(a_Position, 1.0);
+}#version 300 es
+precision highp float;
+
+out vec4 FragColor;
+uniform vec3 u_Color;
+
+void main()
+{
+    FragColor = vec4(u_Color, 1.0);
+}#version 300 es
+precision highp float;
+
+layout (location = 0) in vec3 pos;
+
+void main()
+{
+    gl_Position = vec4(pos, 1.0);
+}#version 300 es
+precision highp float;
+precision highp sampler3D;
+
+in vec2 v_UV;
+out vec4 FragColor;
+
+uniform mat4 u_InvViewProj;
+uniform vec3 u_CamPos;
+
+uniform vec3 u_BoxMin;
+uniform vec3 u_BoxMax;
+
+uniform sampler3D u_FieldTex;   // R32F volume (or R16F)
+uniform float u_Iso;            // usually 0
+uniform float u_StepScale;      // tweak for speed/quality (e.g. 1.0)
+
+uniform vec4 u_Color;           // surface color
+uniform vec3 u_LightPos;
+uniform vec4 u_LightColor;
+
+uniform ivec3 u_FieldDim;
+uniform float u_K;
+
+uniform float u_GridScale;
+uniform float u_GridWidth;
+uniform vec3  u_GridColor;
+uniform float u_GridAlpha;
+
+
+// Color profiles
+uniform bool usePastel;
+uniform bool useNormal;
+uniform bool userColor;
+
+
+
+float sampleField(vec3 p)
+{
+    vec3 bmin = u_BoxMin * u_K;
+    vec3 bmax = u_BoxMax * u_K;
+    vec3 uvw = (p - bmin) / (bmax - bmin);
+    return texture(u_FieldTex, uvw).r - u_Iso;
+}
+
+vec3 fieldNormal(vec3 pWorld, float baseDt)
+{
+    vec3 sizeW = (u_BoxMax - u_BoxMin);
+    float eps = baseDt * 1.0; // 1 voxel
+
+    float fx1 = sampleField(pWorld + vec3(eps, 0.0, 0.0));
+    float fx0 = sampleField(pWorld - vec3(eps, 0.0, 0.0));
+    float fy1 = sampleField(pWorld + vec3(0.0, eps, 0.0));
+    float fy0 = sampleField(pWorld - vec3(0.0, eps, 0.0));
+    float fz1 = sampleField(pWorld + vec3(0.0, 0.0, eps));
+    float fz0 = sampleField(pWorld - vec3(0.0, 0.0, eps));
+
+    vec3 g = vec3(fx1 - fx0, fy1 - fy0, fz1 - fz0);
+    float l = max(length(g), 1e-8);
+    return g / l;
+}
+
+bool intersectBox(vec3 ro, vec3 rd, vec3 bmin, vec3 bmax, out float t0, out float t1)
+{
+    vec3 invD = 1.0 / rd;
+    vec3 tbot = (bmin - ro) * invD;
+    vec3 ttop = (bmax - ro) * invD;
+    vec3 tminv = min(tbot, ttop);
+    vec3 tmaxv = max(tbot, ttop);
+
+    t0 = max(max(tminv.x, tminv.y), tminv.z);
+    t1 = min(min(tmaxv.x, tmaxv.y), tmaxv.z);
+    return t1 >= max(t0, 0.0);
+}
+
+vec4 Coloring(vec3 N)
+{
+    vec4 col;
+    if (useNormal)
+    {
+        vec3 n01 = normalize(N) * 0.5 + 0.5;
+        col = vec4(n01, u_Color.a);
+    }
+
+    else if (usePastel)
+    {
+        float s = clamp(0.5 + 0.5 * N.y, 0.0, 1.0);
+        float u  = clamp(0.5 + 0.5 * N.x, 0.0, 1.0);
+
+        vec3 coolTop  = vec3(0.52, 0.76, 1.00);
+        vec3 warmBot  = vec3(1.00, 0.60, 0.62);
+        vec3 lavender = vec3(0.72, 0.64, 1.00);
+
+        vec3 base = mix(warmBot, coolTop, s);
+        base = mix(base, lavender, 0.35 * (1.0 - abs(2.0 * u - 1.0)));
+        base = mix(base, vec3(1.0), 0.08);
+
+        col = vec4(base, u_Color.a);
+    }
+    else
+    {
+        col = u_Color;
+    }
+
+    return col;
+}
+
+float sampleFieldLod(vec3 p, float lod)
+{
+    vec3 bmin = u_BoxMin * u_K;
+    vec3 bmax = u_BoxMax * u_K;
+    vec3 uvw = (p - bmin) / (bmax - bmin);
+    return textureLod(u_FieldTex, uvw, lod).r - u_Iso;
+}
+
+float gridLines2D(vec2 uvWorld, float scale, float widthMul)
+{
+    vec2 p = uvWorld * scale;
+    vec2 a = abs(fract(p) - 0.5);
+    vec2 fw = fwidth(p);
+    float lx = 1.0 - smoothstep(0.0, widthMul * fw.x, a.x);
+    float ly = 1.0 - smoothstep(0.0, widthMul * fw.y, a.y);
+    return max(lx, ly);
+}
+
+float gridTriplanar(vec3 worldPos, vec3 nWorld)
+{
+    vec3 n = normalize(nWorld);
+    vec3 w = pow(abs(n), vec3(4.0));
+    w /= max(w.x + w.y + w.z, 1e-6);
+
+    float gx = gridLines2D(worldPos.yz, u_GridScale, u_GridWidth);
+    float gy = gridLines2D(worldPos.xz, u_GridScale, u_GridWidth);
+    float gz = gridLines2D(worldPos.xy, u_GridScale, u_GridWidth);
+
+    return gx * w.x + gy * w.y + gz * w.z;
+}
+
+vec4 RaymarchSample(vec3 ro, vec3 rd)
+{
+    float tEnter, tExit;
+    if (!intersectBox(ro, rd, u_BoxMin, u_BoxMax, tEnter, tExit))
+    return vec4(0.0);
+
+    vec3 boxSize = (u_BoxMax - u_BoxMin);
+    vec3 texelW  = boxSize / vec3(u_FieldDim);
+    float baseDt = min(texelW.x, min(texelW.y, texelW.z));
+    float dt = baseDt * u_StepScale;     // u_StepScale ~ 0.75..2.0
+    dt = max(dt, 1e-5);
+
+
+    vec3 bminK = u_BoxMin * u_K;
+    vec3 bmaxK = u_BoxMax * u_K;
+    vec3 spanK = (bmaxK - bminK);
+
+    float dtTex = dt / max(min(spanK.x, min(spanK.y, spanK.z)), 1e-6);
+    float lod = max(0.0, log2(dtTex * float(max(max(u_FieldDim.x, u_FieldDim.y), u_FieldDim.z))));
+
+    float tLen = (tExit - tEnter);
+    int maxSteps = int(clamp(ceil(tLen / dt), 1.0, 2048.0));
+
+    float t = tEnter;
+    float fPrev = sampleFieldLod(ro + rd * t, lod);
+
+    bool hit = false;
+    float tHit = t;
+
+    for (int i = 0; i < 2048; ++i)
+    {
+        if (i >= maxSteps) break;
+
+        t += dt;
+        if (t > tExit) break;
+
+        vec3 p = ro + rd * t;
+        float f = sampleFieldLod(p, lod);
+
+        if ((fPrev <= 0.0 && f >= 0.0) || (fPrev >= 0.0 && f <= 0.0))
+        {
+            float a = t - dt;
+            float b = t;
+            float fa = fPrev;
+            float fb = f;
+
+            for (int it = 0; it < 10; ++it)
+            {
+                float m = 0.5 * (a + b);
+                float fm = sampleFieldLod(ro + rd * m, lod);
+                bool s = (fa <= 0.0 && fm >= 0.0) || (fa >= 0.0 && fm <= 0.0);
+                if (s) { b = m; fb = fm; }
+                else   { a = m; fa = fm; }
+            }
+
+            tHit = 0.5 * (a + b);
+            hit = true;
+            break;
+        }
+
+        fPrev = f;
+    }
+
+    if (!hit)
+    return vec4(0.0);
+
+    vec3 pHit = ro + rd * tHit;
+    vec3 N = normalize(fieldNormal(pHit, baseDt));
+    vec3 V = normalize(u_CamPos - pHit);
+
+    // Interior normals
+    if (dot(N, V) < 0.0)
+        N = -N;
+
+    vec3 L = normalize(u_LightPos - pHit);
+
+
+    vec4 baseColor = Coloring(N);
+
+    float ambient = 0.12;
+
+    float ndl = dot(N, L);
+    float diff = smoothstep(-0.15, 0.85, ndl);
+
+    vec3 H = normalize(L + V);
+    float specular = pow(max(dot(N, H), 0.0), 96.0) * 0.18;
+
+    float rim = pow(1.0 - max(dot(N, V), 0.0), 2.0) * 0.20;
+
+    float shadow = 0.65 + 0.35 * smoothstep(-0.2, 0.6, ndl);
+
+    vec3 lc = u_LightColor.rgb;
+
+    vec4 color =
+    baseColor * (ambient + diff * shadow)
+    + vec4(lc * specular, 0.0)
+    + rim * baseColor;
+
+    float g = gridTriplanar(pHit / max(u_K, 1e-6), N);
+    color.rgb = mix(color.rgb, u_GridColor, g * u_GridAlpha);
+
+    vec3 rgb = color.rgb;
+    rgb = rgb / (rgb + vec3(1.0));
+    rgb = pow(rgb, vec3(1.0 / 2.2));
+
+    return vec4(rgb, 1.0);
+}
+
+void main()
+{
+    vec2 duvdx = dFdx(v_UV);
+    vec2 duvdy = dFdy(v_UV);
+
+    const vec2 rgss[4] = vec2[4](
+    vec2(-3.0,  1.0) / 8.0,
+    vec2( 1.0,  3.0) / 8.0,
+    vec2( 3.0, -1.0) / 8.0,
+    vec2(-1.0, -3.0) / 8.0
+    );
+
+    vec4 acc = vec4(0.0);
+
+    for (int i = 0; i < 4; ++i)
+    {
+        vec2 uv  = v_UV + rgss[i].x * duvdx + rgss[i].y * duvdy;
+        vec2 ndc = uv * 2.0 - 1.0;
+
+        vec4 nearH = u_InvViewProj * vec4(ndc, -1.0, 1.0);
+        vec4 farH  = u_InvViewProj * vec4(ndc,  1.0, 1.0);
+        vec3 pNear = nearH.xyz / nearH.w;
+        vec3 pFar  = farH.xyz  / farH.w;
+
+        vec3 rd = normalize(pFar - u_CamPos);
+        acc += RaymarchSample(u_CamPos, rd);
+    }
+
+    float exposure = 1.25;
+    FragColor = acc * 0.25 * exposure;
+}#version 300 es
+precision highp float;
+
+out vec2 v_UV;
+
+void main()
+{
+    // Fullscreen triangle
+    vec2 p = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2);
+    v_UV = p;
+    gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);
+}#version 300 es
+precision highp float;
+
+in vec3 WorldPos;
+out vec4 FragColor;
+
+uniform vec3 CameraWorldPos;
+uniform vec3 u_BoxMin;
+uniform vec3 u_BoxMax;
+uniform float u_ContentScale;
+uniform float gGridSize;
+uniform vec3 greyScale;
+
+
+float saturate(float x) { return clamp(x, 0.0, 1.0); }
+float log10f(float x) { return log(x) / log(10.0); }
+
+float gridLineAA(vec2 p, float cell, float thicknessPx)
+{
+    vec2 q = p / cell;
+    vec2 fw = max(fwidth(q), vec2(1e-6));
+    vec2 distToLine = 0.5 - abs(fract(q) - 0.5);
+    vec2 distPx = distToLine / fw;
+    float d = min(distPx.x, distPx.y);
+    float a = 1.0 - smoothstep(thicknessPx, thicknessPx + 1.0, d);
+    return saturate(a);
+}
+
+void main()
+{
+    vec2 p = WorldPos.xz;
+
+    // hard clip (prevents the angle-dependent "inside gradient" problem)
+    if (p.x < u_BoxMin.x || p.x > u_BoxMax.x || p.y < u_BoxMin.z || p.y > u_BoxMax.z)
+    discard;
+
+    vec4 thinCol  = vec4(0.35, 0.35, 0.35, 1.0);
+    vec4 thickCol = vec4(0.60, 0.60, 0.60, 1.0);
+
+    vec4 xAxisColor = vec4(0.40, 0.70, 0.40, 1.0);
+    vec4 zAxisColor = vec4(0.70, 0.30, 0.30, 1.0);
+
+    float gGridCellSize = 2.0;
+    float gGridMinPixelsBetweenCells = 2.0;
+
+    float boxSpan = max(u_BoxMax.x - u_BoxMin.x, u_BoxMax.z - u_BoxMin.z);
+
+    float cell = gGridCellSize * max(u_ContentScale, 1e-8);
+
+    float maxCells = 1024.0;
+    float minCells = 8.0;
+
+    float minCell = boxSpan / maxCells;
+    float maxCell = boxSpan / minCells;
+
+    cell = clamp(cell, minCell, maxCell);
+
+    vec2 dvx = vec2(dFdx(WorldPos.x), dFdy(WorldPos.x));
+    vec2 dvz = vec2(dFdx(WorldPos.z), dFdy(WorldPos.z));
+
+    float lx = length(dvx);
+    float lz = length(dvz);
+
+    vec2 dudv = max(vec2(lx, lz), vec2(1e-6));
+    float l = length(dudv);
+
+    float LOD = log10f(l * gGridMinPixelsBetweenCells / cell);
+    LOD = max(0.0, LOD);
+
+    float cell0 = cell * pow(10.0, floor(LOD));
+    float cell1 = cell0 * 10.0;
+    float cell2 = cell1 * 10.0;
+
+    float fade = fract(LOD);
+
+    float thinPx  = 0.25;
+    float thickPx = 0.45;
+
+    float g0 = gridLineAA(p, cell0, thinPx);
+    float g1 = gridLineAA(p, cell1, thinPx);
+    float g2 = gridLineAA(p, cell2, thickPx);
+
+    float thinA  = mix(g1, g0, fade);
+    float thickA = g2;
+
+    vec3 rgb = thinCol.rgb;
+    float a  = thinA;
+
+    rgb = mix(rgb, thickCol.rgb, thickA);
+    a   = max(a, thickA);
+
+    float axisPx = 1.0;
+    float wz = max(fwidth(WorldPos.z), 1e-6);
+    float wx = max(fwidth(WorldPos.x), 1e-6);
+
+    float xAxisMask = 1.0 - smoothstep(0.0, axisPx * wz, abs(WorldPos.z));
+    float zAxisMask = 1.0 - smoothstep(0.0, axisPx * wx, abs(WorldPos.x));
+
+    rgb = mix(rgb, xAxisColor.rgb, xAxisMask);
+    a   = max(a, xAxisMask);
+
+    rgb = mix(rgb, zAxisColor.rgb, zAxisMask);
+    a   = max(a, zAxisMask);
+
+//    float dist = length(WorldPos.xz - CameraWorldPos.xz);
+//    float falloff = 1.0 - clamp(dist / gGridSize, 0.0, 1.0);
+//    a *= falloff;
+
+    // stable 1px-ish AA border using fwidth(distanceToEdge)
+    float dx = min(p.x - u_BoxMin.x, u_BoxMax.x - p.x);
+    float dz = min(p.y - u_BoxMin.z, u_BoxMax.z - p.y);
+    float d  = min(dx, dz);               // world units to nearest edge (inside)
+
+    float w  = max(fwidth(d), 1e-6);      // world units per pixel for this scalar
+    float borderPx = 1.25;                // tweak: 1.0..2.0
+    float border = 1.0 - smoothstep(0.0, borderPx * w, d);
+
+    rgb = mix(rgb, greyScale, border);
+    a   = max(a, border);
+
+    FragColor = vec4(rgb, a);
+}#version 300 es
+precision highp float;
+
+out vec3 WorldPos;
+
+uniform mat4 Projection;
+uniform mat4 View;
+uniform vec3 CameraWorldPos;
+uniform float gGridSize;
+uniform float GridHeight;
+
+const vec3 Pos[4] = vec3[4](
+vec3(-1.0, 0.0, -1.0),
+vec3( 1.0, 0.0, -1.0),
+vec3( 1.0, 0.0,  1.0),
+vec3(-1.0, 0.0,  1.0)
+);
+
+const uint Indices[6] = uint[6](0u, 1u, 2u, 0u, 2u, 3u);
+
+void main()
+{
+    vec3 p = Pos[Indices[uint(gl_VertexID)]] * gGridSize;
+
+    p.x += CameraWorldPos.x;
+    p.y = GridHeight;
+    p.z += CameraWorldPos.z;
+
+    WorldPos = p;
+    gl_Position = Projection * View * vec4(p, 1.0);
+}#version 300 es
+precision highp float;
+
+out vec4 FragColor;
+uniform vec4 u_LightColor;
+
+void main()
+{
+    FragColor = u_LightColor;
+}#version 300 es
+precision highp float;
+
+layout (location = 0) in vec3 position;
+
+uniform mat4 u_MVP;
+
+void main()
+{
+    gl_Position = u_MVP * vec4(position, 1.0);
+}#version 300 es
+precision highp float;
+
+in vec3 Normal;
+in vec3 FragPos;
+in vec3 vWorldPos;
+
+out vec4 FragColor;
+
+uniform vec3 cameraPos;
+uniform vec3 lightPos;
+uniform vec4 lightColor;
+
+uniform vec4 u_Color;
+
+uniform vec3 u_BoxMin;
+uniform vec3 u_BoxMax;
+uniform float u_ContentScale;
+
+uniform float u_GridScale;   // lines per world-unit
+uniform float u_GridWidth;   // thickness multiplier (screen-stable via fwidth)
+uniform vec3  u_GridColor;   // grid line color
+uniform float u_GridAlpha;   // blend strength [0..1]
+
+
+
+// Color profil
+uniform bool usePastel;
+uniform bool useNormal;
+uniform bool userColor;
+
+float saturate(float x) { return clamp(x, 0.0, 1.0); }
+
+vec4 Coloring(vec3 N)
+{
+    vec4 col;
+    if (useNormal)
+    {
+        vec3 n01 = normalize(N) * 0.5 + 0.5;
+        col = vec4(n01, u_Color.a);
+    }
+
+    else if (usePastel)
+    {
+        float s = clamp(0.5 + 0.5 * N.y, 0.0, 1.0);
+        float u  = clamp(0.5 + 0.5 * N.x, 0.0, 1.0);
+
+        vec3 coolTop  = vec3(0.52, 0.76, 1.00);
+        vec3 warmBot  = vec3(1.00, 0.60, 0.62);
+        vec3 lavender = vec3(0.72, 0.64, 1.00);
+
+        vec3 base = mix(warmBot, coolTop, s);
+        base = mix(base, lavender, 0.35 * (1.0 - abs(2.0 * u - 1.0)));
+        base = mix(base, vec3(1.0), 0.08);
+
+        col = vec4(base, u_Color.a);
+    }
+    else
+    {
+        col = u_Color;
+    }
+
+    return col;
+}
+
+
+
+float gridLines2D(vec2 uvWorld, float scale, float widthMul)
+{
+    vec2 p = uvWorld * scale;
+    vec2 a = abs(fract(p) - 0.5);
+    vec2 fw = fwidth(p);
+    float lx = 1.0 - smoothstep(0.0, widthMul * fw.x, a.x);
+    float ly = 1.0 - smoothstep(0.0, widthMul * fw.y, a.y);
+    return max(lx, ly);
+}
+
+
+// triplanar grid blended by normal (world-space)
+float gridTriplanar(vec3 worldPos, vec3 nWorld)
+{
+    vec3 n = normalize(nWorld);
+    vec3 w = pow(abs(n), vec3(4.0));
+    w /= max(w.x + w.y + w.z, 1e-6);
+
+    float gx = gridLines2D(worldPos.yz, u_GridScale, u_GridWidth);
+    float gy = gridLines2D(worldPos.xz, u_GridScale, u_GridWidth);
+    float gz = gridLines2D(worldPos.xy, u_GridScale, u_GridWidth);
+
+    return gx * w.x + gy * w.y + gz * w.z;
+}
+
+void main()
+{
+    vec3 d0 = vWorldPos - u_BoxMin;
+    vec3 d1 = u_BoxMax  - vWorldPos;
+    vec3 fw = fwidth(vWorldPos);
+
+    float fx = min(smoothstep(-fw.x, fw.x, d0.x), smoothstep(-fw.x, fw.x, d1.x));
+    float fy = min(smoothstep(-fw.y, fw.y, d0.y), smoothstep(-fw.y, fw.y, d1.y));
+    float fz = min(smoothstep(-fw.z, fw.z, d0.z), smoothstep(-fw.z, fw.z, d1.z));
+    float boxMask = fx * fy * fz;
+
+    if (boxMask <= 0.0) discard;
+
+    vec3 N = normalize(Normal);
+    vec3 V = normalize(cameraPos - FragPos);
+    vec3 L = normalize(lightPos - FragPos);
+
+    // Interior normals
+    if (dot(N, V) < 0.0)
+    N = -N;
+
+    vec4 baseColor = Coloring(N);
+
+
+    float ambient = 0.12;
+
+    float ndl = dot(N, L);
+    float diff = smoothstep(-0.15, 0.85, ndl);
+
+    vec3 H = normalize(L + V);
+    float specular = pow(max(dot(N, H), 0.0), 96.0) * 0.18;
+
+    float rim = pow(1.0 - max(dot(N, V), 0.0), 2.0) * 0.20 * boxMask;
+
+    float shadow = 0.65 + 0.35 * smoothstep(-0.2, 0.6, ndl);
+
+    vec3 lc = lightColor.rgb;
+
+    vec4 color =
+    baseColor * (ambient + diff * shadow)
+    + vec4(lc * specular, 0.0)
+    + rim * baseColor;
+
+    float g = gridTriplanar(vWorldPos / max(u_ContentScale, 1e-6), N);
+    color.rgb = mix(color.rgb, u_GridColor, g * u_GridAlpha);
+
+    vec3 rgb = color.rgb;
+    rgb = rgb / (rgb + vec3(1.0));
+    rgb = pow(rgb, vec3(1.0/2.2));
+
+    float exposure = 1.2;
+    FragColor = vec4(rgb * boxMask, color.a * boxMask) * exposure;
+}#version 300 es
+precision highp float;
+
+layout (location = 0) in vec3 a_Position;
+layout (location = 1) in vec3 a_Normal;
+layout (location = 2) in vec2 a_TexCoord;
+
+out vec2 TexCoord;
+out vec3 Normal;
+out vec3 FragPos;
+out vec3 Dir;
+out vec3 vWorldPos;
+
+uniform mat4 u_MVP;
+uniform mat4 u_Model;
+
+void main()
+{
+    vec4 world = u_Model * vec4(a_Position, 1.0);
+    vWorldPos = world.xyz;
+
+    gl_Position = u_MVP * vec4(a_Position, 1.0);
+
+    FragPos = vec3(u_Model * vec4(a_Position, 1.0));
+    Normal = mat3(transpose(inverse(u_Model))) * a_Normal;
+
+    Dir = mat3(u_Model) * a_Position;
+    TexCoord = a_TexCoord;
+}#version 410 core
+
+layout (location = 0) in vec3 a_Position;
+
+out vec2 v_Screen;
+
+void main()
+{
+    // a_Position.xy is already in NDC [-1,1]
+    v_Screen = a_Position.xy;
+    gl_Position = vec4(a_Position, 1.0);
+}

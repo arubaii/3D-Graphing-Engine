@@ -1,0 +1,2 @@
+/Users/ahmadrubaii/emsdk/upstream/emscripten/emar qc libglm.a CMakeFiles/glm.dir/detail/glm.cpp.o
+/Users/ahmadrubaii/emsdk/upstream/emscripten/emranlib libglm.a

@@ -1,0 +1,31 @@
+CMakeFiles/3D_Graphing_Engine.dir/src/renderer_core/IndexBuffer.cpp.o: \
+  /Users/ahmadrubaii/3D-Graphing-Engine/src/renderer_core/IndexBuffer.cpp \
+  /Users/ahmadrubaii/3D-Graphing-Engine/src/renderer_core/IndexBuffer.h \
+  /Users/ahmadrubaii/emsdk/upstream/emscripten/cache/sysroot/include/c++/v1/cstdint \
+  /Users/ahmadrubaii/emsdk/upstream/emscripten/cache/sysroot/include/c++/v1/__config \
+  /Users/ahmadrubaii/emsdk/upstream/emscripten/cache/sysroot/include/c++/v1/__config_site \
+  /Users/ahmadrubaii/emsdk/upstream/emscripten/cache/sysroot/include/c++/v1/__configuration/abi.h \
+  /Users/ahmadrubaii/emsdk/upstream/emscripten/cache/sysroot/include/c++/v1/__configuration/compiler.h \
+  /Users/ahmadrubaii/emsdk/upstream/emscripten/cache/sysroot/include/c++/v1/__configuration/platform.h \
+  /Users/ahmadrubaii/emsdk/upstream/emscripten/cache/sysroot/include/c++/v1/__configuration/availability.h \
+  /Users/ahmadrubaii/emsdk/upstream/emscripten/cache/sysroot/include/c++/v1/__configuration/language.h \
+  /Users/ahmadrubaii/emsdk/upstream/lib/clang/23/include/stdint.h \
+  /Users/ahmadrubaii/emsdk/upstream/emscripten/cache/sysroot/include/stdint.h \
+  /Users/ahmadrubaii/emsdk/upstream/emscripten/cache/sysroot/include/bits/alltypes.h \
+  /Users/ahmadrubaii/emsdk/upstream/emscripten/cache/sysroot/include/bits/stdint.h \
+  /Users/ahmadrubaii/3D-Graphing-Engine/include/GLcommon.h \
+  /Users/ahmadrubaii/emsdk/upstream/emscripten/cache/sysroot/include/GLES3/gl3.h \
+  /Users/ahmadrubaii/emsdk/upstream/emscripten/cache/sysroot/include/GLES3/gl3platform.h \
+  /Users/ahmadrubaii/emsdk/upstream/emscripten/cache/sysroot/include/KHR/khrplatform.h \
+  /Users/ahmadrubaii/emsdk/upstream/emscripten/cache/sysroot/include/GLFW/glfw3.h \
+  /Users/ahmadrubaii/emsdk/upstream/emscripten/cache/sysroot/include/c++/v1/stddef.h \
+  /Users/ahmadrubaii/emsdk/upstream/lib/clang/23/include/stddef.h \
+  /Users/ahmadrubaii/emsdk/upstream/emscripten/cache/sysroot/include/stddef.h \
+  /Users/ahmadrubaii/emsdk/upstream/lib/clang/23/include/__stddef_header_macro.h \
+  /Users/ahmadrubaii/emsdk/upstream/lib/clang/23/include/__stddef_ptrdiff_t.h \
+  /Users/ahmadrubaii/emsdk/upstream/lib/clang/23/include/__stddef_size_t.h \
+  /Users/ahmadrubaii/emsdk/upstream/lib/clang/23/include/__stddef_wchar_t.h \
+  /Users/ahmadrubaii/emsdk/upstream/lib/clang/23/include/__stddef_null.h \
+  /Users/ahmadrubaii/emsdk/upstream/lib/clang/23/include/__stddef_nullptr_t.h \
+  /Users/ahmadrubaii/emsdk/upstream/lib/clang/23/include/__stddef_max_align_t.h \
+  /Users/ahmadrubaii/emsdk/upstream/lib/clang/23/include/__stddef_offsetof.h

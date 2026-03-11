@@ -29,6 +29,17 @@ static inline uint64_t QuantKey(const glm::vec3& p, float step)
 
 static inline uint32_t GetOrCreateVertex(SurfaceMesh& mesh, const glm::vec3& pos)
 {
+	if (mesh.m_QuantizeStep <= 0.0f)
+	{
+		Vertex v{};
+		v.Position = pos;
+		v.Normal   = glm::vec3(0.0f);
+
+		const uint32_t idx = (uint32_t)mesh.m_CPU.Vertices.size();
+		mesh.m_CPU.Vertices.push_back(v);
+		return idx;
+	}
+
 	const float step = std::max(mesh.m_QuantizeStep, 1e-6f);
 	const uint64_t key = QuantKey(pos, step);
 
@@ -181,29 +192,149 @@ static void MarchingCubes(
 	}
 }
 
-
-static void ExtractImplicitMesh(
-	OctreeNode* node,
-	const std::function<float(float,float,float)>& f,
-	SurfaceMesh& mesh)
+static void LeafMicroMarch(
+    const AABB& b,
+    const std::function<float(float,float,float)>& eval,
+    SurfaceMesh& mesh)
 {
-	if (!node) return;
+    const int SUB = 2;
+    const glm::vec3 mn = b.min;
+    const glm::vec3 mx = b.max;
+    const glm::vec3 sz = (mx - mn) / float(SUB);
 
-	if (node->isLeaf)
-	{
-		const uint8_t signs = node->cornerSigns;
+    for (int iz = 0; iz < SUB; ++iz)
+    for (int iy = 0; iy < SUB; ++iy)
+    for (int ix = 0; ix < SUB; ++ix)
+    {
+        glm::vec3 c0 = mn + glm::vec3(ix, iy, iz) * sz;
+        glm::vec3 c1 = c0 + sz;
 
-		if (signs != 0x00 && signs != 0xFF)
-			MarchingCubes(node->bounds, node->cornerValues, f, mesh);
-		return;
-	}
+        AABB cb(c0, c1);
 
-	for (int i = 0; i < 8; ++i)
-		ExtractImplicitMesh(node->children[i], f, mesh);
+        glm::vec3 p[8] = {
+            {c0.x, c0.y, c0.z},
+            {c1.x, c0.y, c0.z},
+            {c1.x, c1.y, c0.z},
+            {c0.x, c1.y, c0.z},
+            {c0.x, c0.y, c1.z},
+            {c1.x, c0.y, c1.z},
+            {c1.x, c1.y, c1.z},
+            {c0.x, c1.y, c1.z}
+        };
+
+        float vals[8];
+        uint8_t mask = 0;
+
+        for (int i = 0; i < 8; ++i)
+        {
+            float v = eval(p[i].x, p[i].y, p[i].z);
+            if (!std::isfinite(v)) v = 1e30f;
+            vals[i] = v;
+            if (v < 0.0f) mask |= (1u << i);
+        }
+
+        if (mask != 0x00 && mask != 0xFF)
+            MarchingCubes(cb, vals, eval, mesh);
+    }
 }
 
+static void ExtractImplicitMesh(
+    OctreeNode* node,
+    const std::function<float(float,float,float)>& eval,
+    SurfaceMesh& mesh)
+{
+    if (!node) return;
 
-void SurfaceMesh::Build(const SurfaceSamplingConfig& cfg, const SurfaceEvaluator& eval)
+    if (node->isLeaf)
+    {
+        const uint8_t signs = node->cornerSigns;
+
+        if (signs != 0x00 && signs != 0xFF)
+        {
+            float vals[8];
+            for (int i = 0; i < 8; ++i) vals[i] = node->cornerValues[i];
+            MarchingCubes(node->bounds, vals, eval, mesh);
+            return;
+        }
+
+        const glm::vec3 mn = node->bounds.min;
+        const glm::vec3 mx = node->bounds.max;
+        const glm::vec3 c  = 0.5f * (mn + mx);
+
+        const bool cornerNeg = (signs == 0xFF);
+
+        auto signDiffers = [&](float v) -> bool
+        {
+            bool neg = (v < 0.0f);
+            return neg != cornerNeg;
+        };
+
+        bool maybeCrosses = false;
+
+        {
+            float vc = eval(c.x, c.y, c.z);
+            if (!std::isfinite(vc)) vc = 1e30f;
+            if (signDiffers(vc)) maybeCrosses = true;
+        }
+
+        if (!maybeCrosses)
+        {
+            glm::vec3 fc[6] = {
+                {c.x, c.y, mn.z},
+                {c.x, c.y, mx.z},
+                {mn.x, c.y, c.z},
+                {mx.x, c.y, c.z},
+                {c.x, mn.y, c.z},
+                {c.x, mx.y, c.z},
+            };
+
+            for (int i = 0; i < 6 && !maybeCrosses; ++i)
+            {
+                float v = eval(fc[i].x, fc[i].y, fc[i].z);
+                if (!std::isfinite(v)) v = 1e30f;
+                if (signDiffers(v)) maybeCrosses = true;
+            }
+        }
+
+        if (!maybeCrosses)
+        {
+            glm::vec3 p[8] = {
+                {mn.x, mn.y, mn.z},
+                {mx.x, mn.y, mn.z},
+                {mx.x, mx.y, mn.z},
+                {mn.x, mx.y, mn.z},
+                {mn.x, mn.y, mx.z},
+                {mx.x, mn.y, mx.z},
+                {mx.x, mx.y, mx.z},
+                {mn.x, mx.y, mx.z}
+            };
+
+            const int edges[12][2] = {
+                {0,1},{1,2},{2,3},{3,0},
+                {4,5},{5,6},{6,7},{7,4},
+                {0,4},{1,5},{2,6},{3,7}
+            };
+
+            for (int e = 0; e < 12 && !maybeCrosses; ++e)
+            {
+                glm::vec3 m = 0.5f * (p[edges[e][0]] + p[edges[e][1]]);
+                float v = eval(m.x, m.y, m.z);
+                if (!std::isfinite(v)) v = 1e30f;
+                if (signDiffers(v)) maybeCrosses = true;
+            }
+        }
+
+        if (maybeCrosses)
+            LeafMicroMarch(node->bounds, eval, mesh);
+
+        return;
+    }
+
+    for (int i = 0; i < 8; ++i)
+        ExtractImplicitMesh(node->children[i], eval, mesh);
+}
+
+void SurfaceMesh::Build(const SurfaceSamplingConfig& cfg, const SurfaceEvaluator& eval, int samplingDepth)
 {
 
 	if (eval.IsEmpty())
@@ -221,7 +352,7 @@ void SurfaceMesh::Build(const SurfaceSamplingConfig& cfg, const SurfaceEvaluator
 
 	if (eval.SurfType == SurfaceType::Implicit)
 	{
-		BuildImplicit(cfg.s3, eval);
+		BuildImplicit(cfg.s3, eval, samplingDepth);
 		m_Built = true;
 		return;
 	}
@@ -348,7 +479,7 @@ void SurfaceMesh::BuildExplicit(const SurfaceSampling& s, const SurfaceEvaluator
 
 }
 
-void SurfaceMesh::BuildImplicit(const SurfaceSampling3D& s3, const SurfaceEvaluator& eval)
+void SurfaceMesh::BuildImplicit(const SurfaceSampling3D& s3, const SurfaceEvaluator& eval, const int& depth)
 {
 	m_ImplicitContentScale = s3.contentScale;
 
@@ -357,25 +488,39 @@ void SurfaceMesh::BuildImplicit(const SurfaceSampling3D& s3, const SurfaceEvalua
 
 	auto baseF = eval.GetCallableImplicit();
 
-	const float domainSize = (bounds.max.x - bounds.min.x);
+	const glm::vec3 sz = bounds.size();
+	const float domainSize = std::max(sz.x, std::max(sz.y, sz.z));
 	const int   N = std::max(4, s3.nx);
 
 	float minCellSize = domainSize / float(N);
 
-	int maxDepth = 6;  // fixed for stability
-	int forceLevels = 2;
-	maxDepth = std::clamp(maxDepth, 3, 10);
+	int maxDepth = depth;
+	maxDepth = std::clamp(maxDepth, 3, MAX_OCTREE_DEPTH);
 
-	const float k   = s3.contentScale;
+	int forceLevels = 2;
+
+	const float k = s3.contentScale;
 	const float iso = s3.iso;
 
 	auto signedF = [baseF, iso, k](float x, float y, float z) -> float
 	{
-		float v = baseF((x - 0.0f) * k, (y - 0.0f) * k, (z - 0.0f) * k);
-		if (!std::isfinite(v)) return 1e30f;
-		return v - iso;
-	};
+		float v = 1e30f;
+		try
+		{
+			v = baseF(x * k, y * k, z * k);
+		}
+		catch (...)
+		{
+			return 1e30f;
+		}
 
+		if (!std::isfinite(v)) return std::copysign(1e30f, v);
+
+		v -= iso;
+		if (!std::isfinite(v)) return std::copysign(1e30f, v);
+
+		return v;
+	};
 
 	Octree tree(bounds, maxDepth, minCellSize, forceLevels);
 	tree.Subdivide(tree.root, signedF, maxDepth);
@@ -391,7 +536,8 @@ void SurfaceMesh::BuildImplicit(const SurfaceSampling3D& s3, const SurfaceEvalua
 	scratch.m_CPU = std::move(newCPU);
 
 	scratch.m_VertexCache.clear();
-	scratch.m_QuantizeStep = std::max(minCellSize * 0.25f, 1e-4f);
+	scratch.m_QuantizeStep = 0.0f; // disable quantized welding for now
+	// scratch.m_QuantizeStep = std::max(minCellSize * 0.25f, 1e-4f);
 
 	ExtractImplicitMesh(tree.root, signedF, scratch);
 	FinalizeNormals(scratch);
@@ -402,7 +548,6 @@ void SurfaceMesh::BuildImplicit(const SurfaceSampling3D& s3, const SurfaceEvalua
 	m_CPU = std::move(scratch.m_CPU);
 	m_Built = true;
 }
-
 
 
 void SurfaceMesh::Draw() const

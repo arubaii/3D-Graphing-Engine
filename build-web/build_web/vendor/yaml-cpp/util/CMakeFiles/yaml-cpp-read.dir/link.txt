@@ -1,0 +1,1 @@
+/Users/ahmadrubaii/emsdk/upstream/emscripten/em++ -O3 -DNDEBUG "CMakeFiles/yaml-cpp-read.dir/read.cpp.o" -o read.html  ../libyaml-cpp.a

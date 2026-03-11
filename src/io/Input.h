@@ -37,6 +37,10 @@ private:
 	static void MouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
 	static void ScrollCallback(GLFWwindow*, double xoffset, double yoffset);
 
+	static void KeyCallback(GLFWwindow *window, int key, int scancode, int action, int mods);
+
+	static void CharCallback(GLFWwindow *window, unsigned int c);
+
 
 	struct MouseState {
 		double x = 0.0;

@@ -25,6 +25,7 @@ public:
 	Window& GetWindow() { return *m_Window; }
 	void Run();
 	void TestTriangle();
+	void Frame();
 private:
 	void UpdateDeltaTime()
 	{
@@ -32,6 +33,7 @@ private:
 		m_DeltaTime = currentFrame - m_LastFrame;
 		m_LastFrame = currentFrame;
 	}
+
 
 private:
 	ApplicationProperties m_AppProps;
@@ -50,6 +52,7 @@ private:
 
 	int m_WindowWidth  = 0;
 	int m_WindowHeight = 0;
+
 
 
 };

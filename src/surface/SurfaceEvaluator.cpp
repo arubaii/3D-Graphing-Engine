@@ -43,7 +43,7 @@ SurfaceSample SurfaceEvaluator::Eval(float x, float y) const
 		{
 			case SurfaceType::ExplicitX:
 			{
-				m_f->set_vars({{"x", x}});
+				m_f->set_vars({{"x", x}, {"y", y}});
 				z = m_f->value();
 				break;
 			}
@@ -93,7 +93,7 @@ SurfaceSample SurfaceEvaluator::Eval(float x, float y) const
 float SurfaceEvaluator::Eval3(float x, float y, float z) const
 {
 	if (!m_f)
-		return 0.0f;
+		return 1e30f;
 
 	try
 	{
@@ -104,15 +104,19 @@ float SurfaceEvaluator::Eval3(float x, float y, float z) const
 		double val = m_f->value();
 
 		if (!std::isfinite(val))
-			return 0.0f;
+		{
+			// Never return 0 here (creates fake sign changes)
+			// Keep it consistent and "far from iso"
+			return 1e30f;
+		}
 
-		return float(val);
+		return (float)val;
 	}
 	catch (...)
 	{
-		return 0.0f;
+		// Never return 0 here either
+		return 1e30f;
 	}
-
 }
 
 std::function<float(float,float,float)>
@@ -120,35 +124,30 @@ SurfaceEvaluator::GetCallableImplicit() const
 {
 	auto expr = m_f;
 	if (!expr)
-		return [](float, float, float) { return 0.0f; };
+		return [](float, float, float) { return 1e30f; };
 
-	// Ensure variables exist in the var table before grabbing pointers
 	expr->set_vars("x", 0.0);
 	expr->set_vars("y", 0.0);
 	expr->set_vars("z", 0.0);
 
-	double* px = expr->GetVarPtr("x");
-	double* py = expr->GetVarPtr("y");
-	double* pz = expr->GetVarPtr("z");
-
-	if (!px || !py || !pz)
+	return [expr](float x, float y, float z) -> float
 	{
-
-		return [expr](float x, float y, float z) -> float
+		try
 		{
 			expr->set_vars("x", (double)x);
 			expr->set_vars("y", (double)y);
 			expr->set_vars("z", (double)z);
-			return (float)expr->value();
-		};
-	}
 
-	return [expr, px, py, pz](float x, float y, float z) -> float
-	{
-		*px = (double)x;
-		*py = (double)y;
-		*pz = (double)z;
-		return (float)expr->value();
+			double v = expr->value();
+			if (!std::isfinite(v))
+				return 1e30f;
+
+			return (float)v;
+		}
+		catch (...)
+		{
+			return 1e30f;
+		}
 	};
 }
 
@@ -162,7 +161,7 @@ static float ProbeImplicitBoundary_LastCross(
 
 	auto F = [&](float t) -> float {
 		glm::vec3 p = d * t;
-		return eval.Eval3(p.x, p.y, p.z); // MUST be scalar field
+		return eval.Eval3(p.x, p.y, p.z); // Must be scalar field
 	};
 
 	float t0 = 0.0f;
@@ -217,8 +216,116 @@ static float ProbeImplicitBoundary_LastCross(
 
 float SurfaceEvaluator::EstimateImplicitDomainRadius() const
 {
-	if (!m_f)
-		return 2.0f;
+    if (!m_f)
+        return 2.0f;
+
+    auto F = [&](float x, float y, float z) -> float
+    {
+        try
+        {
+            m_f->set_vars("x", (double)x);
+            m_f->set_vars("y", (double)y);
+            m_f->set_vars("z", (double)z);
+
+            double v = m_f->value();
+            if (!std::isfinite(v)) return 1e30f;
+            return (float)v;
+        }
+        catch (...)
+        {
+            return 1e30f;
+        }
+    };
+
+    constexpr float STEP    = 0.25f;
+    constexpr float PADDING = 1.0f;
+
+    static const glm::vec3 dirs[] =
+    {
+        { 1, 0, 0 }, { -1, 0, 0 },
+        { 0, 1, 0 }, {  0,-1, 0 },
+        { 0, 0, 1 }, {  0, 0,-1 },
+
+        { 1, 1, 0 }, { -1, 1, 0 }, { 1,-1, 0 }, { -1,-1, 0 },
+        { 1, 0, 1 }, { -1, 0, 1 }, { 1, 0,-1 }, { -1, 0,-1 },
+        { 0, 1, 1 }, {  0,-1, 1 }, { 0, 1,-1 }, {  0,-1,-1 },
+
+        { 1, 1, 1 }, { -1, 1, 1 }, { 1,-1, 1 }, { 1, 1,-1 },
+        { -1,-1, 1 },{ -1, 1,-1 },{ 1,-1,-1 },{ -1,-1,-1 }
+    };
+
+    auto ProbeLastCross = [&](const glm::vec3& dir) -> float
+    {
+        glm::vec3 d = glm::normalize(dir);
+
+        float t0 = 0.0f;
+        float f0 = F(0.0f, 0.0f, 0.0f);
+
+        bool found = false;
+        float lastA = 0.0f, lastB = 0.0f;
+        float fa = f0, fb = f0;
+
+        for (float t1 = STEP; t1 <= m_MAX_DOMAIN_RANGE; t1 += STEP)
+        {
+            glm::vec3 p1 = d * t1;
+            float f1 = F(p1.x, p1.y, p1.z);
+
+            if ((f0 < 0.0f && f1 > 0.0f) || (f0 > 0.0f && f1 < 0.0f))
+            {
+                found = true;
+                lastA = t0; lastB = t1;
+                fa = f0; fb = f1;
+            }
+
+            t0 = t1;
+            f0 = f1;
+        }
+
+        if (!found)
+            return 0.0f;
+
+        float lo = lastA, hi = lastB;
+        float flo = fa, fhi = fb;
+
+        for (int i = 0; i < 20; ++i)
+        {
+            float mid = 0.5f * (lo + hi);
+            glm::vec3 pm = d * mid;
+            float fmid = F(pm.x, pm.y, pm.z);
+
+            if ((flo < 0.0f && fmid > 0.0f) || (flo > 0.0f && fmid < 0.0f))
+            {
+                hi = mid; fhi = fmid;
+            }
+            else
+            {
+                lo = mid; flo = fmid;
+            }
+        }
+
+        return 0.5f * (lo + hi);
+    };
+
+    float maxR = 0.0f;
+
+    for (const glm::vec3& d : dirs)
+    {
+        float r = ProbeLastCross(d);
+        maxR = std::max(maxR, r);
+    }
+
+    float outR = maxR + PADDING;
+
+    if (outR <= STEP)
+        outR = 8.0f;
+
+    outR = std::clamp(outR, 1.0f, m_MAX_DOMAIN_RANGE);
+    return outR;
+}
+
+bool SurfaceEvaluator::IsImplicitLikelyInfinite() const
+{
+	if (!m_f) return false;
 
 	auto F = [&](float x, float y, float z) -> float
 	{
@@ -227,37 +334,27 @@ float SurfaceEvaluator::EstimateImplicitDomainRadius() const
 		m_f->set_vars("z", z);
 		double v = m_f->value();
 		if (!std::isfinite(v)) return 1e30f;
-		return (float)v; // field value (iso assumed 0)
+		return (float)v;
 	};
 
-
-	constexpr float STEP        = 0.25f;
-	constexpr float PADDING     = 1.0f;
+	constexpr float STEP = 0.25f;
 
 	static const glm::vec3 dirs[] =
 	{
-		{ 1, 0, 0 }, { -1, 0, 0 },
-		{ 0, 1, 0 }, {  0,-1, 0 },
-		{ 0, 0, 1 }, {  0, 0,-1 },
-
-		{ 1, 1, 0 }, { -1, 1, 0 }, { 1,-1, 0 }, { -1,-1, 0 },
-		{ 1, 0, 1 }, { -1, 0, 1 }, { 1, 0,-1 }, { -1, 0,-1 },
-		{ 0, 1, 1 }, {  0,-1, 1 }, { 0, 1,-1 }, {  0,-1,-1 },
-
-		{ 1, 1, 1 }, { -1, 1, 1 }, { 1,-1, 1 }, { 1, 1,-1 },
-		{ -1,-1, 1 },{ -1, 1,-1 },{ 1,-1,-1 },{ -1,-1,-1 }
+		{ 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 },
+		{ 1, 1, 0 }, { 1, 0, 1 }, { 0, 1, 1 },
+		{ 1, 1, 1 }
 	};
 
-	auto ProbeLastCross = [&](const glm::vec3& dir) -> float
+	for (const glm::vec3& dir : dirs)
 	{
 		glm::vec3 d = glm::normalize(dir);
 
 		float t0 = 0.0f;
 		float f0 = F(0.0f, 0.0f, 0.0f);
 
-		bool found = false;
-		float lastA = 0.0f, lastB = 0.0f;
-		float fa = f0, fb = f0;
+		int crossings = 0;
+		float lastCrossT = 0.0f;
 
 		for (float t1 = STEP; t1 <= m_MAX_DOMAIN_RANGE; t1 += STEP)
 		{
@@ -266,57 +363,20 @@ float SurfaceEvaluator::EstimateImplicitDomainRadius() const
 
 			if ((f0 <= 0.0f && f1 >= 0.0f) || (f0 >= 0.0f && f1 <= 0.0f))
 			{
-				found = true;
-				lastA = t0; lastB = t1;
-				fa = f0; fb = f1;
+				crossings++;
+				lastCrossT = t1;
 			}
 
 			t0 = t1;
 			f0 = f1;
 		}
 
-		if (!found)
-			return 0.0f;
+		if (crossings >= 3) return true;
 
-		float lo = lastA, hi = lastB;
-		float flo = fa, fhi = fb;
-
-		for (int i = 0; i < 18; ++i)
-		{
-			float mid = 0.5f * (lo + hi);
-			glm::vec3 pm = d * mid;
-			float fmid = F(pm.x, pm.y, pm.z);
-
-			if ((flo <= 0.0f && fmid >= 0.0f) || (flo >= 0.0f && fmid <= 0.0f))
-			{
-				hi = mid; fhi = fmid;
-			}
-			else
-			{
-				lo = mid; flo = fmid;
-			}
-		}
-
-		return 0.5f * (lo + hi);
-	};
-
-	float maxR = 0.0f;
-
-	for (const glm::vec3& d : dirs)
-	{
-		float r = ProbeLastCross(d);
-		maxR = std::max(maxR, r);
+		if (crossings > 0 && lastCrossT >= 0.9f * m_MAX_DOMAIN_RANGE)
+			return true;
 	}
 
-	float outR = maxR + PADDING;
-
-	if (outR <= STEP)
-	{
-		outR = 8.0f;
-	}
-
-	outR = std::clamp(outR, 1.0f, m_MAX_DOMAIN_RANGE);
-
-	return outR;
+	return false;
 }
 

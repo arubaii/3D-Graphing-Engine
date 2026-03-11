@@ -46,8 +46,13 @@ unsigned int Shader::CompileShader(GLenum type, const std::string &source)
 Shader::Shader(const std::string &vertexPath, const std::string &fragmentPath)
 {
 	// Fetch shaders and compile
-	std::string fullVertPath =  "../shaders/" + vertexPath;
-	std::string fullFragPath =  "../shaders/" + fragmentPath;
+#ifdef __EMSCRIPTEN__
+	std::string fullVertPath = "/shaders/" + vertexPath;
+	std::string fullFragPath = "/shaders/" + fragmentPath;
+#else
+	std::string fullVertPath = "../shaders/" + vertexPath;
+	std::string fullFragPath = "../shaders/" + fragmentPath;
+#endif
 	std::string vCode = LoadFile(fullVertPath);
 	std::string fCode = LoadFile(fullFragPath);
 

@@ -1,133 +1,122 @@
-#version 410 core
+#version 300 es
+precision highp float;
 
 in vec3 WorldPos;
+out vec4 FragColor;
 
-layout (location = 0) out vec4 FragColor;
-
-uniform float gGridCellSize  = 2.0;
-uniform float gGridMinPixelsBetweenCells = 2.0;
-uniform vec4 gGridColorThin  = vec4(0.35, 0.35, 0.35, 1.0);
-uniform vec4 gGridColorThick = vec4(0.6, 0.6, 0.6, 1.0);
-uniform vec4 xAxisColor = vec4(0.4, 0.7, 0.4, 1.0); // Green
-uniform vec4 zAxisColor = vec4(0.7, 0.3, 0.3, 1.0); // Red
 uniform vec3 CameraWorldPos;
-uniform float gGridSize = 400;
-
 uniform vec3 u_BoxMin;
 uniform vec3 u_BoxMax;
 uniform float u_ContentScale;
+uniform float gGridSize;
+uniform vec3 greyScale;
 
-float log10(float x)
-{   // log10 N/A in 410
-    return log(x) / log(10.0);
+
+float saturate(float x) { return clamp(x, 0.0, 1.0); }
+float log10f(float x) { return log(x) / log(10.0); }
+
+float gridLineAA(vec2 p, float cell, float thicknessPx)
+{
+    vec2 q = p / cell;
+    vec2 fw = max(fwidth(q), vec2(1e-6));
+    vec2 distToLine = 0.5 - abs(fract(q) - 0.5);
+    vec2 distPx = distToLine / fw;
+    float d = min(distPx.x, distPx.y);
+    float a = 1.0 - smoothstep(thicknessPx, thicknessPx + 1.0, d);
+    return saturate(a);
 }
 
-void main(){
+void main()
+{
+    vec2 p = WorldPos.xz;
 
-    if (WorldPos.x < u_BoxMin.x || WorldPos.x > u_BoxMax.x ||
-        WorldPos.z < u_BoxMin.z || WorldPos.z > u_BoxMax.z)
-        discard;
+    // hard clip (prevents the angle-dependent "inside gradient" problem)
+    if (p.x < u_BoxMin.x || p.x > u_BoxMax.x || p.y < u_BoxMin.z || p.y > u_BoxMax.z)
+    discard;
 
-    // Invert zoom direction for grid density:
-    float cell = gGridCellSize * max(u_ContentScale, 1e-8);
+    vec4 thinCol  = vec4(0.35, 0.35, 0.35, 1.0);
+    vec4 thickCol = vec4(0.60, 0.60, 0.60, 1.0);
 
-    // Hard caps so we never get infinite tiny squares or one giant square
+    vec4 xAxisColor = vec4(0.40, 0.70, 0.40, 1.0);
+    vec4 zAxisColor = vec4(0.70, 0.30, 0.30, 1.0);
+
+    float gGridCellSize = 2.0;
+    float gGridMinPixelsBetweenCells = 2.0;
+
     float boxSpan = max(u_BoxMax.x - u_BoxMin.x, u_BoxMax.z - u_BoxMin.z);
 
-    // zoom out limit
-    float maxCells = 256.0;
-    float minCell  = boxSpan / maxCells;
+    float cell = gGridCellSize * max(u_ContentScale, 1e-8);
 
-    // zoom in limit
-    float minCells = 3;
-    float maxCell  = boxSpan / minCells;
+    float maxCells = 1024.0;
+    float minCells = 8.0;
+
+    float minCell = boxSpan / maxCells;
+    float maxCell = boxSpan / minCells;
 
     cell = clamp(cell, minCell, maxCell);
 
-
     vec2 dvx = vec2(dFdx(WorldPos.x), dFdy(WorldPos.x));
-    vec2 dvy = vec2(dFdx(WorldPos.z), dFdy(WorldPos.z));
+    vec2 dvz = vec2(dFdx(WorldPos.z), dFdy(WorldPos.z));
 
     float lx = length(dvx);
-    float ly = length(dvy);
+    float lz = length(dvz);
 
-    vec2 dudv = max(vec2(lx, ly), vec2(1e-6));
+    vec2 dudv = max(vec2(lx, lz), vec2(1e-6));
     float l = length(dudv);
 
-    float LOD = log10(l * gGridMinPixelsBetweenCells / cell);
+    float LOD = log10f(l * gGridMinPixelsBetweenCells / cell);
     LOD = max(0.0, LOD);
 
-    float GridCellSizeLod0 = cell * pow(10.0, floor(LOD));
-    float GridCellSizeLod1 = GridCellSizeLod0 * 10.0;
-    float GridCellSizeLod2 = GridCellSizeLod1 * 10.0;
+    float cell0 = cell * pow(10.0, floor(LOD));
+    float cell1 = cell0 * 10.0;
+    float cell2 = cell1 * 10.0;
 
-    dudv *= 4.0;
+    float fade = fract(LOD);
 
-    // Axis line detection - use appropriate derivative for each axis
-    float xAxisWidth = dudv.y * 0.75; // X-axis runs along X, varies in Z direction
-    float zAxisWidth = dudv.x * 0.75; // Z-axis runs along Z, varies in X direction
+    float thinPx  = 0.25;
+    float thickPx = 0.45;
 
-    float xAxisMask = 1.0 - clamp(abs(WorldPos.z) / xAxisWidth, 0.0, 1.0);
-    float zAxisMask = 1.0 - clamp(abs(WorldPos.x) / zAxisWidth, 0.0, 1.0);
+    float g0 = gridLineAA(p, cell0, thinPx);
+    float g1 = gridLineAA(p, cell1, thinPx);
+    float g2 = gridLineAA(p, cell2, thickPx);
 
-    vec4 Color;
+    float thinA  = mix(g1, g0, fade);
+    float thickA = g2;
 
-    // Check if we're on an axis first
-    if (xAxisMask > 0.0) {
-        Color = xAxisColor;
-        Color.a = xAxisMask;
-    }
-    else if (zAxisMask > 0.0) {
-        Color = zAxisColor;
-        Color.a = zAxisMask;
-    }
-    else // Only draw grid if we're not on an axis
-    {
-        vec2 mod_div_dudv = mod(WorldPos.xz, GridCellSizeLod0) / dudv;
-        // Level of Detail 0
-        float Lod0a = max(
-        (1.0 - abs(clamp(mod_div_dudv.x, 0.0, 1.0) * 2.0 - 1.0)),
-        (1.0 - abs(clamp(mod_div_dudv.y, 0.0, 1.0) * 2.0 - 1.0))
-        );
+    vec3 rgb = thinCol.rgb;
+    float a  = thinA;
 
-        mod_div_dudv = mod(WorldPos.xz, GridCellSizeLod1) / dudv;
-        // Level of Detail 1
-        float Lod1a = max(
-        (1.0 - abs(clamp(mod_div_dudv.x, 0.0, 1.0) * 2.0 - 1.0)),
-        (1.0 - abs(clamp(mod_div_dudv.y, 0.0, 1.0) * 2.0 - 1.0))
-        );
+    rgb = mix(rgb, thickCol.rgb, thickA);
+    a   = max(a, thickA);
 
-        mod_div_dudv = mod(WorldPos.xz, GridCellSizeLod2) / dudv;
-        // Level of Detail 2
-        float Lod2a = max(
-        (1.0 - abs(clamp(mod_div_dudv.x, 0.0, 1.0) * 2.0 - 1.0)),
-        (1.0 - abs(clamp(mod_div_dudv.y, 0.0, 1.0) * 2.0 - 1.0))
-        );
+    float axisPx = 1.0;
+    float wz = max(fwidth(WorldPos.z), 1e-6);
+    float wx = max(fwidth(WorldPos.x), 1e-6);
 
-        float LOD_fade = fract(LOD);
+    float xAxisMask = 1.0 - smoothstep(0.0, axisPx * wz, abs(WorldPos.z));
+    float zAxisMask = 1.0 - smoothstep(0.0, axisPx * wx, abs(WorldPos.x));
 
-        if (Lod2a > 0.0)
-        {
-            Color = gGridColorThick;
-            Color.a *= Lod2a;
-        }
-        else
-        {
-            if (Lod1a > 0.0)
-            {
-                Color = mix(gGridColorThick, gGridColorThin, LOD_fade);
-                Color.a *= Lod1a;
-            }
-            else
-            {
-                Color = gGridColorThin;
-                Color.a *= (Lod0a * (1 - LOD_fade));
-            }
-        }
-    }
+    rgb = mix(rgb, xAxisColor.rgb, xAxisMask);
+    a   = max(a, xAxisMask);
 
-    float OpacityFalloff = 1.0 - clamp(length(WorldPos.xz - CameraWorldPos.xz) / gGridSize, 0.0, 1.0);
-    Color.a *= OpacityFalloff;
+    rgb = mix(rgb, zAxisColor.rgb, zAxisMask);
+    a   = max(a, zAxisMask);
 
-    FragColor = Color;
+//    float dist = length(WorldPos.xz - CameraWorldPos.xz);
+//    float falloff = 1.0 - clamp(dist / gGridSize, 0.0, 1.0);
+//    a *= falloff;
+
+    // stable 1px-ish AA border using fwidth(distanceToEdge)
+    float dx = min(p.x - u_BoxMin.x, u_BoxMax.x - p.x);
+    float dz = min(p.y - u_BoxMin.z, u_BoxMax.z - p.y);
+    float d  = min(dx, dz);               // world units to nearest edge (inside)
+
+    float w  = max(fwidth(d), 1e-6);      // world units per pixel for this scalar
+    float borderPx = 1.25;                // tweak: 1.0..2.0
+    float border = 1.0 - smoothstep(0.0, borderPx * w, d);
+
+    rgb = mix(rgb, greyScale, border);
+    a   = max(a, border);
+
+    FragColor = vec4(rgb, a);
 }
